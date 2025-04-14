@@ -45,7 +45,9 @@ class DataPack:
                 path=cfg_data.source_path,
                 extension=cfg_data.extension,
                 test_every=cfg_data.test_every,
-                eval=cfg_data.eval)
+                eval=cfg_data.eval,
+                load_depth=cfg_data.load_depth,
+                load_mask=cfg_data.load_mask)
         else:
             raise Exception("Unknown scene type!")
 

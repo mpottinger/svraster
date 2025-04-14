@@ -38,7 +38,8 @@ def parse_principle_point(info, is_cx):
     return None
 
 
-def read_a_camera(frame, fovx, fovy, cx_p, cy_p, path, extension, points=None, correspondent=None):
+def read_a_camera(frame, fovx, fovy, cx_p, cy_p, path, extension,
+                  load_depth=False, load_mask=False, points=None, correspondent=None):
     # Guess the rgb image path and load image
     image_path = os.path.join(path, frame["file_path"] + extension)
     if not os.path.exists(image_path):
@@ -65,7 +66,8 @@ def read_a_camera(frame, fovx, fovy, cx_p, cy_p, path, extension, points=None, c
     w2c = np.linalg.inv(c2w).astype(np.float32)
 
     # Load depth if there is
-    if "depth_path" in frame:
+    if load_depth:
+        assert "depth_path" in frame
         depth_path = os.path.join(path, frame["depth_path"])
         depth = Image.open(depth_path)
     else:
@@ -73,7 +75,8 @@ def read_a_camera(frame, fovx, fovy, cx_p, cy_p, path, extension, points=None, c
         depth = None
 
     # Load mask if there is
-    if "mask_path" in frame:
+    if load_mask:
+        assert "mask_path" in frame
         mask_path = os.path.join(path, frame["mask_path"])
         mask = Image.open(mask_path)
     else:
@@ -99,7 +102,8 @@ def read_a_camera(frame, fovx, fovy, cx_p, cy_p, path, extension, points=None, c
         sparse_pt=sparse_pt,
     )
 
-def read_cameras_from_json(path, transformsfile, extension=".png", points=None, correspondent=None):
+def read_cameras_from_json(path, transformsfile, extension=".png",
+                           load_depth=False, load_mask=False, points=None, correspondent=None):
 
     with open(os.path.join(path, transformsfile)) as json_file:
         contents = json.load(json_file)
@@ -111,12 +115,13 @@ def read_cameras_from_json(path, transformsfile, extension=".png", points=None, 
     frames = contents["frames"]
 
     cam_infos = [
-        read_a_camera(frame, fovx, fovy, cx_p, cy_p, path, extension, points, correspondent)
+        read_a_camera(frame, fovx, fovy, cx_p, cy_p, path, extension,
+                      load_depth, load_mask, points, correspondent)
         for idx, frame in enumerate(frames)]
 
     return cam_infos
 
-def read_nerf_dataset(path, extension, test_every, eval):
+def read_nerf_dataset(path, extension, test_every, eval, load_depth=False, load_mask=False):
     # Read SfM sparse points if there is
     point_cloud = None
     correspondent = None
@@ -141,15 +146,15 @@ def read_nerf_dataset(path, extension, test_every, eval):
     # Load train/test camera info
     if os.path.exists(os.path.join(path, "transforms_train.json")):
         train_cam_infos = read_cameras_from_json(
-            path, "transforms_train.json", extension, points, correspondent)
+            path, "transforms_train.json", extension, load_depth, load_mask, points, correspondent)
         test_cam_infos = read_cameras_from_json(
-            path, "transforms_test.json", extension, points, correspondent)
+            path, "transforms_test.json", extension, load_depth, load_mask, points, correspondent)
         if not eval:
             train_cam_infos.extend(test_cam_infos)
             test_cam_infos = []
     else:
         train_cam_infos = read_cameras_from_json(
-            path, "transforms.json", extension, points, correspondent)
+            path, "transforms.json", extension, load_depth, load_mask, points, correspondent)
         test_cam_infos = []
         if eval:
             test_cam_infos = [c for idx, c in enumerate(train_cam_infos) if idx % test_every == 0]
