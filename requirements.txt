@@ -1,6 +1,7 @@
 numpy
 einops
-opencv-python
+opencv-python==4.8.0.74
+opencv-contrib-python==4.8.0.74
 
 yacs
 tqdm
