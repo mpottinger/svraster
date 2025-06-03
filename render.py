@@ -36,10 +36,10 @@ from src.utils.image_utils import im_tensor2np, viz_tensordepth
 @torch.no_grad()
 def render_set(name, iteration, suffix, args, views, voxel_model):
 
-    render_path = os.path.join(voxel_model.model_path, name, f"ours_{iteration}{suffix}", "renders")
-    gts_path = os.path.join(voxel_model.model_path, name, f"ours_{iteration}{suffix}", "gt")
-    alpha_path = os.path.join(voxel_model.model_path, name, f"ours_{iteration}{suffix}", "alpha")
-    viz_path = os.path.join(voxel_model.model_path, name, f"ours_{iteration}{suffix}", "viz")
+    render_path = os.path.join(args.model_path, name, f"ours_{iteration}{suffix}", "renders")
+    gts_path = os.path.join(args.model_path, name, f"ours_{iteration}{suffix}", "gt")
+    alpha_path = os.path.join(args.model_path, name, f"ours_{iteration}{suffix}", "alpha")
+    viz_path = os.path.join(args.model_path, name, f"ours_{iteration}{suffix}", "viz")
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
     makedirs(alpha_path, exist_ok=True)
@@ -125,7 +125,7 @@ def render_set(name, iteration, suffix, args, views, voxel_model):
         print(f'Eps time: {eps_time:.3f} sec')
         print(f"Peak mem: {peak_mem:.2f} GB")
         print(f'FPS     : {len(views)/eps_time:.0f}')
-        outtxt = os.path.join(voxel_model.model_path, name, "ours_{}{}.txt".format(iteration, suffix))
+        outtxt = os.path.join(args.model_path, name, "ours_{}{}.txt".format(iteration, suffix))
         with open(outtxt, 'w') as f:
             f.write(f"n={len(views):.6f}\n")
             f.write(f"eps={eps_time:.6f}\n")
@@ -166,7 +166,7 @@ if __name__ == "__main__":
 
     # Load model
     voxel_model = SparseVoxelModel(cfg.model)
-    loaded_iter = voxel_model.load_iteration(args.iteration)
+    loaded_iter = voxel_model.load_iteration(args.model_path, args.iteration)
 
     # Output path suffix
     suffix = args.suffix

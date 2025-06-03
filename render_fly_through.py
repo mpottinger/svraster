@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     # Load model
     voxel_model = SparseVoxelModel(cfg.model)
-    loaded_iter = voxel_model.load_iteration(args.iteration)
+    loaded_iter = voxel_model.load_iteration(args.model_path, args.iteration)
     voxel_model.freeze_vox_geo()
 
     # Rendering
@@ -115,6 +115,6 @@ if __name__ == "__main__":
 
         video.append(im_tensor2np(rendering))
 
-    outpath = os.path.join(voxel_model.model_path, "render_fly_through.mp4")
+    outpath = os.path.join(args.model_path, "render_fly_through.mp4")
     imageio.mimwrite(outpath, video, fps=30)
     print("Save to", outpath)

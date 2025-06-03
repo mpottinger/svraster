@@ -42,7 +42,7 @@ class SVRasterViewer:
 
         # Load model
         self.voxel_model = SparseVoxelModel(cfg.model)
-        self.voxel_model.load_iteration(args.iteration)
+        self.voxel_model.load_iteration(args.model_path, args.iteration)
         self.voxel_model.freeze_vox_geo()
 
         # Create viser server

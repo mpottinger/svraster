@@ -81,7 +81,7 @@ def training(args):
     voxel_model = SparseVoxelModel(cfg.model)
 
     if args.load_iteration:
-        loaded_iter = voxel_model.load_iteration(args.load_iteration)
+        loaded_iter = voxel_model.load_iteration(args.model_path, args.load_iteration)
     else:
         loaded_iter = None
         voxel_model.model_init(
@@ -95,7 +95,7 @@ def training(args):
     # Init optimizer
     voxel_model.optimizer_init(cfg.optimizer)
     if loaded_iter and args.load_optimizer:
-        voxel_model.optimizer_load_iteration(loaded_iter)
+        voxel_model.optimizer_load_iteration(args.model_path, loaded_iter)
 
     # Init lr warmup scheduler
     if first_iter <= cfg.optimizer.n_warmup:
@@ -406,29 +406,26 @@ def training(args):
 
             # Log and save
             training_report(
+                args=args,
                 data_pack=data_pack,
                 voxel_model=voxel_model,
                 iteration=iteration,
-                loss=loss,
-                psnr=psnr,
                 elapsed=elapsed,
-                ema_psnr=ema_psnr_for_log,
-                pg_view_every=args.pg_view_every,
-                test_iterations=args.test_iterations)
+                ema_psnr=ema_psnr_for_log)
 
             if iteration in args.checkpoint_iterations or iteration == cfg.procedure.n_iter:
-                voxel_model.save_iteration(iteration, quantize=args.save_quantized)
+                voxel_model.save_iteration(args.model_path, iteration, quantize=args.save_quantized)
                 if args.save_optimizer:
-                    voxel_model.optimizer_save_iteration(iteration)
+                    voxel_model.optimizer_save_iteration(args.model_path, iteration)
                 print(f"[SAVE] path={voxel_model.latest_save_path}")
 
 
-def training_report(data_pack, voxel_model, iteration, loss, psnr, elapsed, ema_psnr, pg_view_every, test_iterations):
+def training_report(args, data_pack, voxel_model, iteration, elapsed, ema_psnr):
 
     voxel_model.freeze_vox_geo()
 
     # Progress view
-    if pg_view_every > 0 and (iteration % pg_view_every == 0 or iteration == 1):
+    if args.pg_view_every > 0 and (iteration % args.pg_view_every == 0 or iteration == 1):
         torch.cuda.empty_cache()
         test_cameras = data_pack.get_test_cameras()
         if len(test_cameras) == 0:
@@ -458,23 +455,23 @@ def training_report(data_pack, voxel_model, iteration, loss, psnr, elapsed, ema_
         ], axis=0)
         torch.cuda.empty_cache()
 
-        outdir = os.path.join(voxel_model.model_path, "pg_view")
+        outdir = os.path.join(args.model_path, "pg_view")
         outpath = os.path.join(outdir, f"iter{iteration:06d}.jpg")
         os.makedirs(outdir, exist_ok=True)
 
         imageio.imwrite(outpath, im)
 
-        eps_file = os.path.join(voxel_model.model_path, "pg_view", "eps.txt")
+        eps_file = os.path.join(args.model_path, "pg_view", "eps.txt")
         with open(eps_file, 'a') as f:
             f.write(f"{iteration},{elapsed/1000:.1f}\n")
 
     # Report test and samples of training set
-    if iteration in test_iterations:
+    if iteration in args.test_iterations:
         print(f"[EVAL] running...")
         torch.cuda.empty_cache()
         test_cameras = data_pack.get_test_cameras()
         save_every = max(1, len(test_cameras) // 8)
-        outdir = os.path.join(voxel_model.model_path, "test_view")
+        outdir = os.path.join(args.model_path, "test_view")
         os.makedirs(outdir, exist_ok=True)
         psnr_lst = []
         video = []
@@ -531,7 +528,7 @@ def training_report(data_pack, voxel_model, iteration, loss, psnr, elapsed, ema_
 
         print(f"[EVAL] iter={iteration:6d}  psnr={avg_psnr:.2f}  fps={fps:.0f}")
 
-        outdir = os.path.join(voxel_model.model_path, "test_stat")
+        outdir = os.path.join(args.model_path, "test_stat")
         outpath = os.path.join(outdir, f"iter{iteration:06d}.json")
         os.makedirs(outdir, exist_ok=True)
         with open(outpath, 'w') as f:
@@ -561,6 +558,7 @@ if __name__ == "__main__":
         description="Sparse voxels raster optimization."
         "You can specify a list of config files to overwrite the default setups."
         "All config fields can also be overwritten by command line.")
+    parser.add_argument('--model_path')
     parser.add_argument('--cfg_files', default=[], nargs='*')
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
     parser.add_argument("--test_iterations", nargs="*", type=int, default=[-1])
@@ -581,16 +579,16 @@ if __name__ == "__main__":
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
 
     # Setup output folder and dump config
-    if not cfg.model.model_path:
+    if not args.model_path:
         datetime_str = datetime.datetime.now().strftime("%Y-%m%d-%H%M")
         unique_str = str(uuid.uuid4())[:6]
         folder_name = f"{datetime_str}-{unique_str}"
-        cfg.model.model_path = os.path.join(f"./output", folder_name)
+        args.model_path = os.path.join(f"./output", folder_name)
 
-    os.makedirs(cfg.model.model_path, exist_ok=True)
-    with open(os.path.join(cfg.model.model_path, "config.yaml"), "w") as f:
+    os.makedirs(args.model_path, exist_ok=True)
+    with open(os.path.join(args.model_path, "config.yaml"), "w") as f:
             f.write(cfg.dump())
-    print(f"Output folder: {cfg.model.model_path}")
+    print(f"Output folder: {args.model_path}")
 
     # Apply scheduler scaling
     if cfg.procedure.sche_mult != 1:

@@ -35,7 +35,6 @@ class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOp
            Heuristically initial the sparse grid layout and parameters from the training datas.
         '''
         super().__init__()
-        self.model_path = cfg_model.model_path
         self.vox_geo_mode = cfg_model.vox_geo_mode
         self.density_mode = cfg_model.density_mode
         self.active_sh_degree = cfg_model.sh_degree

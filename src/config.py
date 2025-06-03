@@ -19,7 +19,6 @@ cfg.model = CfgNode(dict(
     sh_degree = 3,
     ss = 1.5,
     outside_level = 5,  # Number of Octree level outside the main 3D region
-    model_path = "",
     white_background = False,  # Assume known white bg color
     black_background = False,  # Assume known black bg color
 ))

@@ -35,10 +35,10 @@ class SVOptimizer:
         state_dict = torch.load(path, map_location="cuda")
         self.optimizer.load_state_dict(state_dict['optimizer'])
 
-    def optimizer_save_iteration(self, iteration):
-        path = os.path.join(self.model_path, "checkpoints", f"iter{iteration:06d}_optim.pt")
+    def optimizer_save_iteration(self, model_path, iteration):
+        path = os.path.join(model_path, "checkpoints", f"iter{iteration:06d}_optim.pt")
         self.optimizer_save(path)
 
-    def optimizer_load_iteration(self, iteration):
-        path = os.path.join(self.model_path, "checkpoints", f"iter{iteration:06d}_optim.pt")
+    def optimizer_load_iteration(self, model_path, iteration):
+        path = os.path.join(model_path, "checkpoints", f"iter{iteration:06d}_optim.pt")
         self.optimizer_load(path)

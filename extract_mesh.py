@@ -374,7 +374,7 @@ if __name__ == "__main__":
 
     # Load model
     voxel_model = SparseVoxelModel(cfg.model)
-    voxel_model.load_iteration(args.iteration)
+    voxel_model.load_iteration(args.model_path, args.iteration)
     voxel_model.freeze_vox_geo()
 
     if args.overwrite_ss is not None:

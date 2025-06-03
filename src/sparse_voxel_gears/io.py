@@ -81,20 +81,20 @@ class SVInOut:
 
         self.loaded_path = path
 
-    def save_iteration(self, iteration, quantize=False):
-        path = os.path.join(self.model_path, "checkpoints", f"iter{iteration:06d}_model.pt")
+    def save_iteration(self, model_path, iteration, quantize=False):
+        path = os.path.join(model_path, "checkpoints", f"iter{iteration:06d}_model.pt")
         self.save(path, quantize=quantize)
         self.latest_save_iter = iteration
 
-    def load_iteration(self, iteration=-1):
+    def load_iteration(self, model_path, iteration=-1):
         if iteration == -1:
             # Find the maximum iteration if it is -1.
-            fnames = os.listdir(os.path.join(self.model_path, "checkpoints"))
+            fnames = os.listdir(os.path.join(model_path, "checkpoints"))
             loaded_iter = max(int(re.sub("[^0-9]", "", fname)) for fname in fnames)
         else:
             loaded_iter = iteration
 
-        path = os.path.join(self.model_path, "checkpoints", f"iter{loaded_iter:06d}_model.pt")
+        path = os.path.join(model_path, "checkpoints", f"iter{loaded_iter:06d}_model.pt")
         self.load(path)
 
         self.loaded_iter = iteration
