@@ -55,6 +55,13 @@ class SVProperties:
         return self._shs
 
     @property
+    def subdivision_priority(self):
+        return self._subdiv_p.grad
+
+    def reset_subdivision_priority(self):
+        self._subdiv_p.grad = None
+
+    @property
     def signature(self):
         # Signature to check if the voxel grid layout is updated
         return (self.num_voxels, id(self.octpath), id(self.octlevel))

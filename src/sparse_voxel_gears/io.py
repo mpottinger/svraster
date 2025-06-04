@@ -70,9 +70,6 @@ class SVInOut:
         self._subdiv_p = torch.ones(
             [self.num_voxels, 1],
             dtype=torch.float32, device="cuda").requires_grad_()
-        self.subdiv_meta = torch.zeros(
-            [self.num_voxels, 1],
-            dtype=torch.float32, device="cuda")
 
     def save_iteration(self, model_path, iteration, quantize=False):
         path = os.path.join(model_path, "checkpoints", f"iter{iteration:06d}_model.pt")

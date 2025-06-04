@@ -61,8 +61,6 @@ cfg.optimizer = CfgNode(dict(
     optim_beta2 = 0.99,
     optim_eps = 1e-15,
 
-    n_warmup = 100,
-
     lr_decay_ckpt = [19000],
     lr_decay_mult = 0.1,
 ))

@@ -10,12 +10,11 @@ from src.sparse_voxel_gears.constructor import SVConstructor
 from src.sparse_voxel_gears.properties import SVProperties
 from src.sparse_voxel_gears.renderer import SVRenderer
 from src.sparse_voxel_gears.adaptive import SVAdaptive
-from src.sparse_voxel_gears.optimizer import SVOptimizer
 from src.sparse_voxel_gears.io import SVInOut
 from src.sparse_voxel_gears.pooling import SVPooling
 
 
-class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOptimizer, SVInOut, SVPooling):
+class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVInOut, SVPooling):
 
     def __init__(self,
                  n_samp_per_vox=1,       # Number of sampled points per visited voxel
@@ -25,8 +24,8 @@ class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOp
                  black_background=False, # Assum black background
                  ):
         '''
-        Setup of the model. The config is defined by `cfg.model` in `src/config.py`.
-        After the initial setup. There are two ways to instantiate the models:
+        Setup of the model meta. At this point, no voxel is allocated.
+        Use the following methods to allocate voxels and parameters.
 
         1. `model_load` defined in `src/sparse_voxel_gears/io.py`.
            Load the saved models from a given path.
@@ -35,6 +34,7 @@ class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOp
            Heuristically initial the sparse grid layout and parameters from the training datas.
         '''
         super().__init__()
+
         self.n_samp_per_vox = n_samp_per_vox
         self.max_sh_degree = sh_degree
         self.ss = ss
@@ -44,15 +44,14 @@ class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOp
         # List the variable names
         self.per_voxel_attr_lst = [
             'octpath', 'octlevel',
-            'subdiv_meta',
+            '_subdiv_p',
         ]
         self.per_voxel_param_lst = [
-            '_sh0', '_shs', '_subdiv_p',
+            '_sh0', '_shs',
         ]
         self.grid_pts_param_lst = [
             '_geo_grid_pts',
         ]
-        self.state_attr_names = ['exp_avg', 'exp_avg_sq']
 
         # To be init from model_init
         self.scene_center = None
@@ -66,4 +65,3 @@ class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOp
         self._sh0 = None
         self._shs = None
         self._subdiv_p = None
-        self.subdiv_meta = None

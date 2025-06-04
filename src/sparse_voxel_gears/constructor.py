@@ -84,9 +84,6 @@ class SVConstructor:
         self._subdiv_p = torch.ones(
             [self.num_voxels, 1],
             dtype=torch.float32, device="cuda").requires_grad_()
-        self.subdiv_meta = torch.zeros(
-            [self.num_voxels, 1],
-            dtype=torch.float32, device="cuda")
 
 
 #################################################

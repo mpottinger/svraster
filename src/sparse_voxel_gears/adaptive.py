@@ -41,13 +41,14 @@ class SVAdaptive:
 
         old_vox_key = self.vox_key.clone()
 
-        self.clear_optimizer_states()
-
         # Prune non-trainable per-voxel attributes.
         for name in self.per_voxel_attr_lst:
             ori_attr = getattr(self, name)
             new_attr = mask_cat_perm(ori_attr, kept_idx=kept_idx)
             setattr(self, name, new_attr)
+            if name == '_subdiv_p' and ori_attr.grad is not None:
+                self._subdiv_p.grad = mask_cat_perm(ori_attr.grad, kept_idx=kept_idx)
+                self._subdiv_p.requires_grad_()
             del ori_attr
         torch.cuda.empty_cache()
 
@@ -78,8 +79,6 @@ class SVAdaptive:
             del ori_grid_pts, ori_vox_grid_pts_val, new_vox_val, new_param
         torch.cuda.empty_cache()
 
-        self.renew_optimizer_states()
-
     @torch.no_grad()
     def subdividing(self, subdivide_mask):
         '''
@@ -97,8 +96,6 @@ class SVAdaptive:
             return
 
         old_vox_key = self.vox_key.clone()
-
-        self.clear_optimizer_states()
 
         # Subdivide non-trainable per-voxel attributes.
         octpath, octlevel = octree_utils.gen_children(
@@ -121,6 +118,12 @@ class SVAdaptive:
                 kept_idx=kept_idx,
                 cat_tensor=subdiv_attr)
             setattr(self, name, new_attr)
+            if name == '_subdiv_p' and ori_attr.grad is not None:
+                self._subdiv_p.grad = mask_cat_perm(
+                    ori_attr.grad,
+                    kept_idx=kept_idx,
+                    cat_tensor=subdiv_attr)
+                self._subdiv_p.requires_grad_()
             del ori_attr, subdiv_attr
 
         assert len(special_subdiv) == 0
@@ -165,8 +168,6 @@ class SVAdaptive:
             del new_vox_val, new_param
         torch.cuda.empty_cache()
 
-        self.renew_optimizer_states()
-
     @torch.no_grad()
     def sh_degree_add1(self):
         if self.active_sh_degree < self.max_sh_degree:
@@ -205,32 +206,6 @@ class SVAdaptive:
         }
         self.unfreeze_vox_geo()
         return stat_pkg
-
-    @torch.no_grad()
-    def clear_optimizer_states(self):
-        if not hasattr(self, 'optimizer'):
-            return
-        for name in self.per_voxel_param_lst + self.grid_pts_param_lst:
-            param = getattr(self, name)
-            del self.optimizer.state[param]
-            torch.cuda.empty_cache()
-
-    @torch.no_grad()
-    def renew_optimizer_states(self):
-        if not hasattr(self, 'optimizer'):
-            return
-        lookup = {
-            group['name']: idx
-            for idx, group in enumerate(self.optimizer.param_groups)
-        }
-        for name in self.per_voxel_param_lst + self.grid_pts_param_lst:
-            # WARNING: may cause error if a param is never optimized.
-            group_idx = lookup[name]
-            new_param = getattr(self, name)
-            assert len(self.optimizer.param_groups[group_idx]['params']) == 1
-            self.optimizer.param_groups[group_idx]['params'][0] = new_param
-            self.optimizer.state[new_param] = {}
-            torch.cuda.empty_cache()
 
 
 # Some helpful functions

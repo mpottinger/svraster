@@ -107,16 +107,29 @@ def training(args):
     print(f"Start optmization from iters={first_iter}.")
 
     # Init optimizer
-    voxel_model.optimizer_init(cfg.optimizer)
-    if loaded_iter and args.load_optimizer:
-        voxel_model.optimizer_load_iteration(args.model_path, loaded_iter)
+    def create_trainer():
+        # The pytorch built-in `torch.optim.Adam` also works
+        optimizer = svraster_cuda.sparse_adam.SparseAdam(
+            [
+                {'params': [voxel_model._geo_grid_pts], 'lr': cfg.optimizer.geo_lr},
+                {'params': [voxel_model._sh0], 'lr': cfg.optimizer.sh0_lr},
+                {'params': [voxel_model._shs], 'lr': cfg.optimizer.shs_lr},
+            ],
+            betas=(cfg.optimizer.optim_beta1, cfg.optimizer.optim_beta2),
+            eps=cfg.optimizer.optim_eps)
 
-    # Init lr warmup scheduler
-    if first_iter <= cfg.optimizer.n_warmup:
-        rate = max(first_iter - 1, 0) / cfg.optimizer.n_warmup
-        for param_group in voxel_model.optimizer.param_groups:
-            param_group["base_lr"] = param_group["lr"]
-            param_group["lr"] = rate * param_group["base_lr"]
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer,
+            milestones=cfg.optimizer.lr_decay_ckpt,
+            gamma=cfg.optimizer.lr_decay_mult)
+        return optimizer, scheduler
+
+    optimizer, scheduler = create_trainer()
+    if loaded_iter and args.load_optimizer:
+        optim_ckpt = torch.load(os.path.join(args.model_path, "optim.pt"))
+        optimizer.load_state_dict(optim_ckpt['optim'])
+        scheduler.load_state_dict(optim_ckpt['sched'])
+        del optim_ckpt
 
     # Some other initialization
     iter_start = torch.cuda.Event(enable_timing=True)
@@ -249,7 +262,7 @@ def training(args):
             loss += cfg.regularizer.lambda_normal_dmed * nmed_loss(cam, render_pkg, iteration)
 
         # Backward to get gradient of current iteration
-        voxel_model.optimizer.zero_grad(set_to_none=True)
+        optimizer.zero_grad(set_to_none=True)
         loss.backward()
 
         # Total variation regularization
@@ -259,29 +272,7 @@ def training(args):
             voxel_model.apply_tv_on_density_field(cfg.regularizer.lambda_tv_density)
 
         # Optimizer step
-        voxel_model.optimizer.step()
-
-        # Learning rate warmup scheduler step
-        if iteration <= cfg.optimizer.n_warmup:
-            rate = iteration / cfg.optimizer.n_warmup
-            for param_group in voxel_model.optimizer.param_groups:
-                param_group["lr"] = rate * param_group["base_lr"]
-
-        if iteration in cfg.optimizer.lr_decay_ckpt:
-            for param_group in voxel_model.optimizer.param_groups:
-                ori_lr = param_group["lr"]
-                param_group["lr"] *= cfg.optimizer.lr_decay_mult
-                print(f'LR decay of {param_group["name"]}: {ori_lr} => {param_group["lr"]}')
-
-        ######################################################
-        # Gradient statistic should happen before adaptive op
-        ######################################################
-
-        need_stat = (
-            iteration >= 500 and \
-            iteration <= cfg.procedure.subdivide_until)
-        if need_stat:
-            voxel_model.subdiv_meta += voxel_model._subdiv_p.grad
+        optimizer.step()
 
         ######################################################
         # Start adaptive voxels pruning and subdividing
@@ -300,7 +291,10 @@ def training(args):
             voxel_model.num_voxels < cfg.procedure.subdivide_max_num)
 
         if need_pruning or need_subdividing:
+            # Track voxel statistic
             stat_pkg = voxel_model.compute_training_stat(camera_lst=tr_cams)
+            # Cache scheduler state
+            scheduler_state = scheduler.state_dict()
 
         if need_pruning:
             ori_n = voxel_model.num_voxels
@@ -334,7 +328,7 @@ def training(args):
             valid_mask = large_enough & non_finest
 
             # Compute subdivision threshold
-            priority = voxel_model.subdiv_meta.squeeze(1) * valid_mask
+            priority = voxel_model.subdivision_priority.squeeze(1) * valid_mask
 
             if iteration <= cfg.procedure.subdivide_all_until:
                 thres = -1
@@ -357,15 +351,23 @@ def training(args):
             in_p = voxel_model.inside_mask.float().mean().item()
             print(f'[SUBDIVIDING] {ori_n:7d} => {new_n:7d} (x{new_n/ori_n:.2f}; inside={in_p*100:.1f}%)')
 
-            # Reset priority trackor
-            voxel_model.subdiv_meta.zero_()  # reset subdiv meta
+            # Reset priority for the next round
+            voxel_model.reset_subdivision_priority()
 
         if need_pruning or need_subdividing:
+            # Re-create trainer for the updated parameters
+            optimizer, scheduler = create_trainer()
+            scheduler.load_state_dict(scheduler_state)
+            del scheduler_state
+
             torch.cuda.empty_cache()
 
         ######################################################
         # End of adaptive voxels procedure
         ######################################################
+
+        # Update learning rate
+        scheduler.step()
 
         # End processing time tracking of this iteration
         iter_end.record()
@@ -404,7 +406,9 @@ def training(args):
             if iteration in args.checkpoint_iterations or iteration == cfg.procedure.n_iter:
                 voxel_model.save_iteration(args.model_path, iteration, quantize=args.save_quantized)
                 if args.save_optimizer:
-                    voxel_model.optimizer_save_iteration(args.model_path, iteration)
+                    torch.save(
+                        {'optim': optimizer.state_dict(), 'sched': scheduler.state_dict()},
+                        os.path.join(args.model_path, "optim.pt"))
                 print(f"[SAVE] path={voxel_model.latest_save_path}")
 
 
@@ -584,7 +588,6 @@ if __name__ == "__main__":
 
         for key in ['geo_lr', 'sh0_lr', 'shs_lr']:
             cfg.optimizer[key] /= sche_mult
-        cfg.optimizer.n_warmup = round(cfg.optimizer.n_warmup * sche_mult)
         cfg.optimizer.lr_decay_ckpt = [
             round(v * sche_mult) if v > 0 else v
             for v in cfg.optimizer.lr_decay_ckpt]
