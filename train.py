@@ -118,18 +118,6 @@ def training(args):
             param_group["base_lr"] = param_group["lr"]
             param_group["lr"] = rate * param_group["base_lr"]
 
-    # Init subdiv
-    remain_subdiv_times = sum(
-        (i >= first_iter)
-        for i in range(
-            cfg.procedure.subdivide_from, cfg.procedure.subdivide_until+1,
-            cfg.procedure.subdivide_every
-        )
-    )
-    subdivide_scale = cfg.procedure.subdivide_target_scale ** (1 / remain_subdiv_times)
-    subdivide_prop = max(0, (subdivide_scale - 1) / 7)
-    print(f"Subdiv: times={remain_subdiv_times:2d} scale-each-time={subdivide_scale*100:.1f}% prop={subdivide_prop*100:.1f}%")
-
     # Some other initialization
     iter_start = torch.cuda.Event(enable_timing=True)
     iter_end = torch.cuda.Event(enable_timing=True)
@@ -264,18 +252,11 @@ def training(args):
         voxel_model.optimizer.zero_grad(set_to_none=True)
         loss.backward()
 
-        # Grid-level regularization
-        grid_reg_interval = iteration >= cfg.regularizer.tv_from and iteration <= cfg.regularizer.tv_until
-        if cfg.regularizer.lambda_tv_density and grid_reg_interval:
-            lambda_tv_mult = cfg.regularizer.tv_decay_mult ** (iteration // cfg.regularizer.tv_decay_every)
-            svraster_cuda.grid_loss_bw.total_variation(
-                grid_pts=voxel_model._geo_grid_pts,
-                vox_key=voxel_model.vox_key,
-                weight=cfg.regularizer.lambda_tv_density * lambda_tv_mult,
-                vox_size_inv=voxel_model.vox_size_inv,
-                no_tv_s=True,
-                tv_sparse=cfg.regularizer.tv_sparse,
-                grid_pts_grad=voxel_model._geo_grid_pts.grad)
+        # Total variation regularization
+        if cfg.regularizer.lambda_tv_density and \
+                iteration >= cfg.regularizer.tv_from and \
+                iteration <= cfg.regularizer.tv_until:
+            voxel_model.apply_tv_on_density_field(cfg.regularizer.lambda_tv_density)
 
         # Optimizer step
         voxel_model.optimizer.step()
@@ -306,86 +287,80 @@ def training(args):
         # Start adaptive voxels pruning and subdividing
         ######################################################
 
+        meet_adapt_period = (
+            iteration % cfg.procedure.adapt_every == 0 and \
+            iteration >= cfg.procedure.adapt_from and \
+            iteration <= cfg.procedure.n_iter-500)
         need_pruning = (
-            iteration % cfg.procedure.prune_every == 0 and \
-            iteration >= cfg.procedure.prune_from and \
+            meet_adapt_period and \
             iteration <= cfg.procedure.prune_until)
         need_subdividing = (
-            iteration % cfg.procedure.subdivide_every == 0 and \
-            iteration >= cfg.procedure.subdivide_from and \
+            meet_adapt_period and \
             iteration <= cfg.procedure.subdivide_until and \
             voxel_model.num_voxels < cfg.procedure.subdivide_max_num)
 
-        # Do nothing in last 500 iteration
-        need_pruning &= (iteration <= cfg.procedure.n_iter-500)
-        need_subdividing &= (iteration <= cfg.procedure.n_iter-500)
-
         if need_pruning or need_subdividing:
             stat_pkg = voxel_model.compute_training_stat(camera_lst=tr_cams)
-            torch.cuda.empty_cache()
 
         if need_pruning:
             ori_n = voxel_model.num_voxels
 
             # Compute pruning threshold
-            prune_all_iter = max(1, cfg.procedure.prune_until - cfg.procedure.prune_every)
-            prune_now_iter = max(0, iteration - cfg.procedure.prune_every)
-            prune_iter_rate = max(0, min(1, prune_now_iter / prune_all_iter))
-            thres_inc = max(0, cfg.procedure.prune_thres_final - cfg.procedure.prune_thres_init)
-            prune_thres = cfg.procedure.prune_thres_init + thres_inc * prune_iter_rate
+            prune_thres = np.interp(
+                iteration,
+                xp=[cfg.procedure.adapt_from, cfg.procedure.prune_until],
+                fp=[cfg.procedure.prune_thres_init, cfg.procedure.prune_thres_final])
 
             # Prune voxels
             prune_mask = (stat_pkg['max_w'] < prune_thres).squeeze(1)
 
+            # Pruning
             voxel_model.pruning(prune_mask)
 
-            # Prune statistic (for the following subdivision)
-            kept_idx = (~prune_mask).argwhere().squeeze(1)
-            for k, v in stat_pkg.items():
-                stat_pkg[k] = v[kept_idx]
-
+            # Show statistic
             new_n = voxel_model.num_voxels
             print(f'[PRUNING]     {ori_n:7d} => {new_n:7d} (x{new_n/ori_n:.2f};  thres={prune_thres:.4f})')
-            torch.cuda.empty_cache()
 
         if need_subdividing:
-            # Exclude some voxels
-            size_thres = stat_pkg['min_samp_interval'] * cfg.procedure.subdivide_samp_thres
-            large_enough_mask = (voxel_model.vox_size * 0.5 > size_thres).squeeze(1)
-            non_finest_mask = voxel_model.octlevel.squeeze(1) < svraster_cuda.meta.MAX_NUM_LEVELS
-            valid_mask = large_enough_mask & non_finest_mask
+            ori_n = voxel_model.num_voxels
 
-            # Get some statistic for subdivision priority
+            # Exclude some voxels
+            min_samp_interval = stat_pkg['min_samp_interval']
+            if need_pruning:
+                min_samp_interval = min_samp_interval[~prune_mask]
+            size_thres = min_samp_interval * cfg.procedure.subdivide_samp_thres
+            large_enough = (voxel_model.vox_size * 0.5 > size_thres).squeeze(1)
+            non_finest = voxel_model.octlevel.squeeze(1) < svraster_cuda.meta.MAX_NUM_LEVELS
+            valid_mask = large_enough & non_finest
+
+            # Compute subdivision threshold
             priority = voxel_model.subdiv_meta.squeeze(1) * valid_mask
 
-            # Compute priority rank (larger value has higher priority)
-            rank = torch.zeros_like(priority)
-            rank[priority.argsort()] = torch.arange(len(priority), dtype=torch.float32, device="cuda")
-
-            # Determine the number of voxels to subdivided
             if iteration <= cfg.procedure.subdivide_all_until:
                 thres = -1
             else:
-                thres = rank.quantile(1 - subdivide_prop)
+                thres = priority.quantile(1 - cfg.procedure.subdivide_prop)
 
-            # Compute subdivision mask
-            subdivide_mask = (rank > thres) & valid_mask
+            subdivide_mask = (priority > thres) & valid_mask
 
             # In case the number of voxels over the threshold
             max_n_subdiv = round((cfg.procedure.subdivide_max_num - voxel_model.num_voxels) / 7)
             if subdivide_mask.sum() > max_n_subdiv:
                 n_removed = subdivide_mask.sum() - max_n_subdiv
-                subdivide_mask &= (rank > rank[subdivide_mask].sort().values[n_removed-1])
+                subdivide_mask &= (priority > priority[subdivide_mask].sort().values[n_removed-1])
 
             # Subdivision
-            ori_n = voxel_model.num_voxels
             voxel_model.subdividing(subdivide_mask)
+
+            # Show statistic
             new_n = voxel_model.num_voxels
             in_p = voxel_model.inside_mask.float().mean().item()
             print(f'[SUBDIVIDING] {ori_n:7d} => {new_n:7d} (x{new_n/ori_n:.2f}; inside={in_p*100:.1f}%)')
 
+            # Reset priority trackor
             voxel_model.subdiv_meta.zero_()  # reset subdiv meta
-            remain_subdiv_times -= 1
+
+        if need_pruning or need_subdividing:
             torch.cuda.empty_cache()
 
         ######################################################
@@ -624,8 +599,8 @@ if __name__ == "__main__":
 
         for key in [
                 'n_iter',
-                'prune_from', 'prune_every', 'prune_until',
-                'subdivide_from', 'subdivide_every', 'subdivide_until']:
+                'adapt_from', 'adapt_every',
+                'prune_until', 'subdivide_until', 'subdivide_all_until']:
             cfg.procedure[key] = round(cfg.procedure[key] * sche_mult)
         cfg.procedure.reset_sh_ckpt = [
             round(v * sche_mult) if v > 0 else v

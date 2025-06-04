@@ -1,14 +1,3 @@
-#
-# Copyright (C) 2023, Inria
-# GRAPHDECO research group, https://team.inria.fr/graphdeco
-# All rights reserved.
-#
-# This software is free for non-commercial, research and evaluation use
-# under the terms of the LICENSE.md file.
-#
-# For inquiries contact  george.drettakis@inria.fr
-#
-
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
@@ -210,6 +199,7 @@ class Camera(CameraBase):
             near=self.near,
             cx_p=self.cx_p, cy_p=self.cy_p)
 
+
 class MiniCam(CameraBase):
     def __init__(self,
             c2w, fovx, fovy,
@@ -302,36 +292,3 @@ class MiniCam(CameraBase):
             [0, 0, 1],
         ], dtype=torch.float32, device="cuda")
         return self.rotate(R)
-
-
-class OrthoCam(MiniCam):
-    def __init__(self,
-            c2w,
-            x_len, y_len,
-            width, height,
-            near=0.02):
-
-        self.image_name = 'orthocam'
-        self.cam_mode = 'ortho'
-
-        self.c2w = torch.tensor(c2w).clone()
-        self.w2c = self.c2w.inverse()
-
-        self.c2w = self.c2w.cuda()
-        self.w2c = self.w2c.cuda()
-
-        self.image_width = width
-        self.image_height = height
-
-        self.tanfovx = x_len * 0.5
-        self.tanfovy = y_len * 0.5
-        self.cx_p = 0.5
-        self.cy_p = 0.5
-        self.near = near
-
-    def __repr__(self):
-        clsname = self.__class__.__name__
-        fname = f"image_name='{self.image_name}'"
-        res = f"HW=({self.image_height}x{self.image_width})"
-        fov = f"len={self.tanfovy*2:.1f}x{self.tanfovx*2}"
-        return f"{clsname}({fname}, {res}, {fov})"

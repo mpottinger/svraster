@@ -12,6 +12,9 @@ from src.utils import octree_utils
 from src.utils.fuser_utils import rgb_fusion
 from src.utils.activation_utils import rgb2shzero
 
+import svraster_cuda
+
+
 class SVProperties:
 
     @property
@@ -114,3 +117,15 @@ class SVProperties:
     def reset_sh_from_cameras(self, cameras):
         self._sh0.data.copy_(rgb2shzero(rgb_fusion(self, cameras)))
         self._shs.data.zero_()
+
+    def apply_tv_on_density_field(self, lambda_tv_density):
+        if self._geo_grid_pts.grad is None:
+            self._geo_grid_pts.grad = torch.zeros_like(self._geo_grid_pts.data)
+        svraster_cuda.grid_loss_bw.total_variation(
+            grid_pts=self._geo_grid_pts,
+            vox_key=self.vox_key,
+            weight=lambda_tv_density,
+            vox_size_inv=self.vox_size_inv,
+            no_tv_s=True,
+            tv_sparse=False,
+            grid_pts_grad=self._geo_grid_pts.grad)

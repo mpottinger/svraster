@@ -130,9 +130,6 @@ cfg.regularizer = CfgNode(dict(
     lambda_tv_density = 1e-10,
     tv_from = 0,
     tv_until = 10000,
-    tv_decay_every = 1000,
-    tv_decay_mult = 1.0,
-    tv_sparse = False,
 
     # Data augmentation
     ss_aug_max = 1.5,
@@ -163,21 +160,21 @@ cfg.procedure = CfgNode(dict(
     # Reset sh
     reset_sh_ckpt = [-1],
 
+    # Adaptive general setup
+    adapt_from = 1000,
+    adapt_every = 1000,
+
     # Adaptive voxel pruning
-    prune_from = 1000,
-    prune_every = 1000,
     prune_until = 18000,
     prune_thres_init = 0.0001,
     prune_thres_final = 0.05,
 
     # Adaptive voxel pruning
-    subdivide_from = 1000,
-    subdivide_every = 1000,
     subdivide_until = 15000,
-    subdivide_samp_thres = 1.0, # A voxel max sampling rate should larger than this.
-    subdivide_target_scale = 90.0,
-    subdivide_max_num = 10_000_000,
     subdivide_all_until = 0,
+    subdivide_samp_thres = 1.0, # A voxel max sampling rate should larger than this.
+    subdivide_prop = 0.05,
+    subdivide_max_num = 10_000_000,
 ))
 
 cfg.auto_exposure = CfgNode(dict(

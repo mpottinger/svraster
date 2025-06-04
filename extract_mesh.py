@@ -19,6 +19,7 @@ import svraster_cuda
 from src.config import cfg, update_argparser, update_config
 from src.utils import octree_utils
 from src.utils import activation_utils
+from src.utils.marching_cubes_utils import torch_marching_cubes_grid
 from src.sparse_voxel_gears.adaptive import subdivide_by_interp, agg_voxel_into_grid_pts
 
 from src.dataloader.data_pack import DataPack
@@ -134,7 +135,7 @@ def extract_mesh_progressive(args, data_pack, voxel_model, init_lv, final_lv, cr
             del grid_tsdf, vox_tsdf
             torch.cuda.empty_cache()
 
-    verts, faces = svraster_cuda.marching_cubes.torch_marching_cubes_grid(
+    verts, faces = torch_marching_cubes_grid(
         grid_pts_val=grid_tsdf,
         grid_pts_xyz=grid_pts_xyz,
         vox_key=vox_key,
@@ -231,7 +232,7 @@ def extract_mesh(args, data_pack, voxel_model, final_lv, crop_bbox, use_lv_avg, 
     del octpath, octlevel
     torch.cuda.empty_cache()
 
-    verts, faces = svraster_cuda.marching_cubes.torch_marching_cubes_grid(
+    verts, faces = torch_marching_cubes_grid(
         grid_pts_val=grid_tsdf,
         grid_pts_xyz=grid_pts_xyz,
         vox_key=vox_key,
@@ -260,7 +261,7 @@ def direct_mc(args, voxel_model, final_lv, crop_bbox):
     iso = getattr(activation_utils, f"{voxel_model.density_mode}_inverse")(iso_density)
     sign = -1
 
-    verts, faces = svraster_cuda.marching_cubes.torch_marching_cubes_grid(
+    verts, faces = torch_marching_cubes_grid(
         grid_pts_val=sign * voxel_model._geo_grid_pts,
         grid_pts_xyz=voxel_model.grid_pts_xyz,
         vox_key=voxel_model.vox_key[inside_idx],
