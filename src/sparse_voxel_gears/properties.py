@@ -7,7 +7,6 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import torch
-import svraster_cuda
 
 from src.utils import octree_utils
 from src.utils.fuser_utils import rgb_fusion

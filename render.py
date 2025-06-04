@@ -46,8 +46,7 @@ def render_set(name, iteration, suffix, args, views, voxel_model):
     makedirs(viz_path, exist_ok=True)
     print(f'render_path: {render_path}')
     print(f'ss            =: {voxel_model.ss}')
-    print(f'vox_geo_mode  =: {voxel_model.vox_geo_mode}')
-    print(f'density_mode  =: {voxel_model.density_mode}')
+    print(f'n_samp_per_vox=: {voxel_model.n_samp_per_vox}')
 
     if args.eval_fps:
         torch.cuda.empty_cache()
@@ -150,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument("--rgb_only", action="store_true")
     parser.add_argument("--use_jpg", action="store_true")
     parser.add_argument("--overwrite_ss", default=None, type=float)
-    parser.add_argument("--overwrite_vox_geo_mode", default=None)
+    parser.add_argument("--overwrite_n_samp_per_vox", default=None)
     args = parser.parse_args()
     print("Rendering " + args.model_path)
 
@@ -165,7 +164,13 @@ if __name__ == "__main__":
     data_pack = DataPack(cfg.data, cfg.model.white_background, camera_params_only=args.eval_fps)
 
     # Load model
-    voxel_model = SparseVoxelModel(cfg.model)
+    voxel_model = SparseVoxelModel(
+        n_samp_per_vox=cfg.model.n_samp_per_vox,
+        sh_degree=cfg.model.sh_degree,
+        ss=cfg.model.ss,
+        white_background=cfg.model.white_background,
+        black_background=cfg.model.black_background,
+    )
     loaded_iter = voxel_model.load_iteration(args.model_path, args.iteration)
 
     # Output path suffix
@@ -181,10 +186,10 @@ if __name__ == "__main__":
         if not args.suffix:
             suffix += f"_ss{args.overwrite_ss:.2f}"
     
-    if args.overwrite_vox_geo_mode:
-        voxel_model.vox_geo_mode = args.overwrite_vox_geo_mode
+    if args.overwrite_n_samp_per_vox:
+        voxel_model.n_samp_per_vox = args.overwrite_n_samp_per_vox
         if not args.suffix:
-            suffix += f"_{args.overwrite_vox_geo_mode}"
+            suffix += f"_{args.overwrite_n_samp_per_vox}"
 
     voxel_model.freeze_vox_geo()
 

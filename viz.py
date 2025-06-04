@@ -41,7 +41,13 @@ class SVRasterViewer:
         self.te_cam_lst = data_pack.get_test_cameras()
 
         # Load model
-        self.voxel_model = SparseVoxelModel(cfg.model)
+        self.voxel_model = SparseVoxelModel(
+            n_samp_per_vox=cfg.model.n_samp_per_vox,
+            sh_degree=cfg.model.sh_degree,
+            ss=cfg.model.ss,
+            white_background=cfg.model.white_background,
+            black_background=cfg.model.black_background,
+        )
         self.voxel_model.load_iteration(args.model_path, args.iteration)
         self.voxel_model.freeze_vox_geo()
 

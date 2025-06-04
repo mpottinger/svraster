@@ -78,16 +78,30 @@ def training(args):
     )
 
     # Init voxel model
-    voxel_model = SparseVoxelModel(cfg.model)
+    voxel_model = SparseVoxelModel(
+        n_samp_per_vox=cfg.model.n_samp_per_vox,
+        sh_degree=cfg.model.sh_degree,
+        ss=cfg.model.ss,
+        white_background=cfg.model.white_background,
+        black_background=cfg.model.black_background,
+    )
 
     if args.load_iteration:
-        loaded_iter = voxel_model.load_iteration(args.model_path, args.load_iteration)
+        loaded_iter = voxel_model.load_iteration(
+            args.model_path, args.load_iteration)
     else:
         loaded_iter = None
         voxel_model.model_init(
             bounding=bounding,
-            cfg_init=cfg.init,
-            cameras=tr_cams)
+            outside_level=cfg.bounding.outside_level,
+            init_n_level=cfg.init.init_n_level,
+            init_out_ratio=cfg.init.init_out_ratio,
+            sh_degree_init=cfg.init.sh_degree_init,
+            geo_init=cfg.init.geo_init,
+            sh0_init=cfg.init.sh0_init,
+            shs_init=cfg.init.shs_init,
+            cameras=tr_cams,
+        )
 
     first_iter = loaded_iter if loaded_iter else 1
     print(f"Start optmization from iters={first_iter}.")

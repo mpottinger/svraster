@@ -12,9 +12,11 @@ data:
   blend_mask: False
   res_downscale: 2.0
 
-model:
+bounding:
   outside_level: 1
-  vox_geo_mode: triinterp3
+
+model:
+  n_samp_per_vox: 3
   black_background: True
 
 optimizer:
@@ -27,4 +29,4 @@ regularizer:
   lambda_normal_dmed: 0.001
 
 init:
-  outside_mode: uniform3
+  init_out_ratio: 0.01  # Use very few voxels for the mostly black background

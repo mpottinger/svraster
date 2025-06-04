@@ -7,12 +7,14 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 # See `src/config.py` for the base setup.
-model:
-  outside_level: 0
-  white_background: True
-
 data:
   eval: True
+
+bounding:
+  outside_level: 0
+
+model:
+  white_background: True
 
 regularizer:
   lambda_T_concen: 0.1

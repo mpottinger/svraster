@@ -23,7 +23,6 @@ rasterize_preprocess(
     const float cx, const float cy,
     const torch::Tensor& w2c_matrix,
     const torch::Tensor& c2w_matrix,
-    const int cam_mode,
     const float near,
 
     const torch::Tensor& octree_paths,

@@ -51,13 +51,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     // Some readonly constant
     m.attr("MAX_NUM_LEVELS") = pybind11::int_(MAX_NUM_LEVELS);
     m.attr("STEP_SZ_SCALE") = pybind11::float_(STEP_SZ_SCALE);
-
-    m.attr("VOX_TRIINTERP_MODE") = pybind11::int_(VOX_TRIINTERP_MODE);
-    m.attr("VOX_TRIINTERP1_MODE") = pybind11::int_(VOX_TRIINTERP1_MODE);
-    m.attr("VOX_TRIINTERP3_MODE") = pybind11::int_(VOX_TRIINTERP3_MODE);
-
-    m.attr("EXP_LINEAR_11_MODE") = pybind11::int_(EXP_LINEAR_11_MODE);
-
-    m.attr("CAM_PERSP") = pybind11::int_(CAM_PERSP);
-    m.attr("CAM_ORTHO") = pybind11::int_(CAM_ORTHO);
+    m.attr("MAX_N_SAMP") = pybind11::int_(MAX_N_SAMP);
 }

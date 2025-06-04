@@ -9,7 +9,6 @@
 import os
 import re
 import torch
-from svraster_cuda.meta import MAX_NUM_LEVELS
 
 from src.utils import octree_utils
 
@@ -49,6 +48,7 @@ class SVInOut:
         '''
         Load the saved models.
         '''
+        self.loaded_path = path
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
 
         if state_dict.get('quantized', False):
@@ -71,15 +71,13 @@ class SVInOut:
         self._sh0 = state_dict['_sh0'].cuda().requires_grad_()
         self._shs = state_dict['_shs'].cuda().requires_grad_()
 
-        N = len(self.octpath)
-        self._subdiv_p = torch.full([N, 1], 1.0, dtype=torch.float32, device="cuda").requires_grad_()
-        self.subdiv_meta = torch.zeros([N, 1], dtype=torch.float32, device="cuda")
-
-        self.bg_color = torch.tensor(
-            [1, 1, 1] if self.white_background else [0, 0, 0],
+        # Subdivision priority trackor
+        self._subdiv_p = torch.ones(
+            [self.num_voxels, 1],
+            dtype=torch.float32, device="cuda").requires_grad_()
+        self.subdiv_meta = torch.zeros(
+            [self.num_voxels, 1],
             dtype=torch.float32, device="cuda")
-
-        self.loaded_path = path
 
     def save_iteration(self, model_path, iteration, quantize=False):
         path = os.path.join(model_path, "checkpoints", f"iter{iteration:06d}_model.pt")

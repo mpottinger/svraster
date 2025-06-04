@@ -339,7 +339,7 @@ if __name__ == "__main__":
     parser.add_argument("--iteration", default=-1, type=int)
     parser.add_argument("--save_gpu", action='store_true')
     parser.add_argument("--overwrite_ss", default=None, type=float)
-    parser.add_argument("--overwrite_vox_geo_mode", default=None, type=str)
+    parser.add_argument("--overwrite_n_samp_per_vox", default=None, type=str)
     parser.add_argument("--bbox_path", default=None)
     parser.add_argument("--bbox_scale", default=1.0, type=float)
     parser.add_argument("--mesh_fname", default=None, type=str)
@@ -373,14 +373,20 @@ if __name__ == "__main__":
     data_pack = DataPack(cfg.data, cfg.model.white_background)
 
     # Load model
-    voxel_model = SparseVoxelModel(cfg.model)
+    voxel_model = SparseVoxelModel(
+        n_samp_per_vox=cfg.model.n_samp_per_vox,
+        sh_degree=cfg.model.sh_degree,
+        ss=cfg.model.ss,
+        white_background=cfg.model.white_background,
+        black_background=cfg.model.black_background,
+    )
     voxel_model.load_iteration(args.model_path, args.iteration)
     voxel_model.freeze_vox_geo()
 
     if args.overwrite_ss is not None:
         voxel_model.ss = args.overwrite_ss
-    if args.overwrite_vox_geo_mode is not None:
-        voxel_model.vox_geo_mode = args.overwrite_vox_geo_mode
+    if args.overwrite_n_samp_per_vox is not None:
+        voxel_model.n_samp_per_vox = args.overwrite_n_samp_per_vox
 
     # Prepare output dir
     outdir = os.path.join(
@@ -390,7 +396,7 @@ if __name__ == "__main__":
 
     print(f'outdir: {outdir}')
     print(f'ss            =: {voxel_model.ss}')
-    print(f'vox_geo_mode  =: {voxel_model.vox_geo_mode}')
+    print(f'n_samp_per_vox=: {voxel_model.n_samp_per_vox}')
     print(f'density_mode  =: {voxel_model.density_mode}')
 
     # Read crop bbox

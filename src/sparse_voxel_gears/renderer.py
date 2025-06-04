@@ -19,7 +19,6 @@ class SVRenderer:
         '''
         with torch.no_grad():
             self.frozen_vox_geo = svraster_cuda.renderer.GatherGeoParams.apply(
-                self.vox_geo_mode,
                 self.vox_key,
                 self.vox_size_inv,
                 torch.arange(self.num_voxels, device="cuda"),
@@ -47,17 +46,20 @@ class SVRenderer:
             @vox_params A dictionary of the pre-process voxel properties.
         '''
 
+        # Gather the density values at the eight corners of each voxel.
+        # It defined a trilinear density field.
+        # The final tensor are in shape [#vox, 8]
         if hasattr(self, 'frozen_vox_geo'):
             geos = self.frozen_vox_geo
         else:
             geos = svraster_cuda.renderer.GatherGeoParams.apply(
-                self.vox_geo_mode,
                 self.vox_key,
                 self.vox_size_inv,
                 idx,
                 self._geo_grid_pts
             )
 
+        # Compute voxel colors
         if color_mode is None or color_mode == "sh":
             active_sh_degree = self.active_sh_degree
             color_mode = "sh"
@@ -77,21 +79,20 @@ class SVRenderer:
             )
         elif color_mode == "rand":
             rgbs = torch.rand([self.num_voxels, 3], dtype=torch.float32, device="cuda")
-        elif color_mode == "level":
-            import matplotlib.pyplot as plt
-            n_lv = float(self.octlevel.max() - self.octlevel.min())
-            lv = (self.octlevel - self.octlevel.min()).div(n_lv).clamp_max(1).flatten().cpu().numpy()
-            rgbs = torch.tensor(plt.get_cmap('brg')(lv)[:, :3], dtype=torch.float32, device="cuda")
         elif color_mode == "dontcare":
             rgbs = torch.empty([self.num_voxels, 3], dtype=torch.float32, device="cuda")
         else:
             raise NotImplementedError
 
+        # Pack everything
         vox_params = {
             'geos': geos,
             'rgbs': rgbs,
-            'subdiv_p': self._subdiv_p,  # Dummy param to record gradients
+            'subdiv_p': self._subdiv_p, # Dummy param to record subdivision priority
         }
+        if vox_params['subdiv_p'] is None:
+            vox_params['subdiv_p'] = torch.ones([self.num_voxels, 1], device="cuda")
+
         return vox_params
 
     def render(
@@ -118,13 +119,14 @@ class SVRenderer:
         if ss != 1.0 and 'gt_color' in other_opt:
             other_opt['gt_color'] = resize_rendering(other_opt['gt_color'], size=(h, w))
 
+        n_samp_per_vox = other_opt.pop('n_samp_per_vox', self.n_samp_per_vox)
+
         ###################################
         # Call low-level rasterization API
         ###################################
         raster_settings = svraster_cuda.renderer.RasterSettings(
             color_mode=color_mode,
-            vox_geo_mode=self.vox_geo_mode,
-            density_mode=self.density_mode,
+            n_samp_per_vox=n_samp_per_vox,
             image_width=w,
             image_height=h,
             tanfovx=camera.tanfovx,
@@ -133,14 +135,13 @@ class SVRenderer:
             cy=camera.cy * h_ss,
             w2c_matrix=camera.w2c,
             c2w_matrix=camera.c2w,
-            background=self.bg_color,
-            cam_mode=camera.cam_mode,
+            bg_color=float(self.white_background),
             near=camera.near,
             need_depth=output_depth,
             need_normal=output_normal,
             track_max_w=track_max_w,
             **other_opt)
-        color, depth, normal, T, max_w, feat = svraster_cuda.renderer.rasterize_voxels(
+        color, depth, normal, T, max_w = svraster_cuda.renderer.rasterize_voxels(
             raster_settings,
             self.octpath,
             self.vox_center,
@@ -164,10 +165,9 @@ class SVRenderer:
             'normal': normal if output_normal else None,
             'T': T if output_T else None,
             'max_w': max_w,
-            'feat': feat if feat.numel() > 0 else None,
         }
 
-        for k in ['color', 'depth', 'normal', 'T', 'feat']:
+        for k in ['color', 'depth', 'normal', 'T']:
             render_pkg[f'raw_{k}'] = render_pkg[k]
 
             # Post process super-sampling

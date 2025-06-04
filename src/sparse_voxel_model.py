@@ -6,12 +6,6 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-import os
-import numpy as np
-
-import torch
-import svraster_cuda
-
 from src.sparse_voxel_gears.constructor import SVConstructor
 from src.sparse_voxel_gears.properties import SVProperties
 from src.sparse_voxel_gears.renderer import SVRenderer
@@ -23,7 +17,13 @@ from src.sparse_voxel_gears.pooling import SVPooling
 
 class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOptimizer, SVInOut, SVPooling):
 
-    def __init__(self, cfg_model):
+    def __init__(self,
+                 n_samp_per_vox=1,       # Number of sampled points per visited voxel
+                 sh_degree=3,            # Use 3 * (k+1)^2 params per voxels for view-dependent colors
+                 ss=1.5,                 # Super-sampling rates for anti-aliasing
+                 white_background=False, # Assum white background
+                 black_background=False, # Assum black background
+                 ):
         '''
         Setup of the model. The config is defined by `cfg.model` in `src/config.py`.
         After the initial setup. There are two ways to instantiate the models:
@@ -35,17 +35,11 @@ class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOp
            Heuristically initial the sparse grid layout and parameters from the training datas.
         '''
         super().__init__()
-        self.vox_geo_mode = cfg_model.vox_geo_mode
-        self.density_mode = cfg_model.density_mode
-        self.active_sh_degree = cfg_model.sh_degree
-        self.max_sh_degree = cfg_model.sh_degree
-        self.ss = cfg_model.ss
-        self.white_background = cfg_model.white_background
-        self.black_background = cfg_model.black_background
-
-        assert cfg_model.outside_level <= svraster_cuda.meta.MAX_NUM_LEVELS
-        self.outside_level = cfg_model.outside_level
-        self.inside_level = svraster_cuda.meta.MAX_NUM_LEVELS - self.outside_level
+        self.n_samp_per_vox = n_samp_per_vox
+        self.max_sh_degree = sh_degree
+        self.ss = ss
+        self.white_background = white_background
+        self.black_background = black_background
 
         # List the variable names
         self.per_voxel_attr_lst = [
@@ -60,3 +54,21 @@ class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOp
             '_geo_grid_pts',
         ]
         self.state_attr_names = ['exp_avg', 'exp_avg_sq']
+
+        # To be init from model_init
+        self.scene_center = None
+        self.scene_extent = None
+        self.inside_extent = None
+        self.octpath = None
+        self.octlevel = None
+        self.vox_center = None
+        self.vox_size = None
+        self.grid_pts_key = None
+        self.vox_key = None
+        self.active_sh_degree = sh_degree
+
+        self._geo_grid_pts = None
+        self._sh0 = None
+        self._shs = None
+        self._subdiv_p = None
+        self.subdiv_meta = None

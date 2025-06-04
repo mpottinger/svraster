@@ -6,7 +6,6 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-import os
 import argparse
 from yacs.config import CfgNode
 
@@ -14,13 +13,11 @@ from yacs.config import CfgNode
 cfg = CfgNode()
 
 cfg.model = CfgNode(dict(
-    vox_geo_mode = "triinterp1",
-    density_mode = "exp_linear_11",
-    sh_degree = 3,
-    ss = 1.5,
-    outside_level = 5,  # Number of Octree level outside the main 3D region
-    white_background = False,  # Assume known white bg color
-    black_background = False,  # Assume known black bg color
+    n_samp_per_vox = 1,       # Number of sampled points per visited voxel
+    sh_degree = 3,            # Use 3 * (k+1)^2 params per voxels for view-dependent colors
+    ss = 1.5,                 # Super-sampling rates for anti-aliasing
+    white_background = False, # Assum white background
+    black_background = False, # Assum black background
 ))
 
 cfg.data = CfgNode(dict(
@@ -50,6 +47,9 @@ cfg.bounding = CfgNode(dict(
     bound_scale = 1.0,        # Scaling factor of the bound
     forward_dist_scale = 1.0, # For forward mode
     pcd_density_rate = 0.1,   # For pcd mode
+
+    # Number of Octree level outside the main foreground region
+    outside_level = 5,
 ))
 
 cfg.optimizer = CfgNode(dict(
@@ -150,16 +150,8 @@ cfg.init = CfgNode(dict(
     # Init main inside region by dense voxels
     init_n_level = 6,  # (2^6)^3 voxels
 
-    # Init background outside region by different strategies.
-    #   none        : no voxels in outside region.
-    #   uniform[N]  : subdivide each shell level by N times.
-    #                 ex. uniform1, uniform2, uniform3, ...
-    #   heuristic   : init fixed amount of voxels based on init_out_ratio.
-    outside_mode = "heuristic",
+    # Number of voxel ratio for outside (background region) 
     init_out_ratio = 2.0,
-
-    # Apply aabb crop if given
-    aabb_crop = False,
 ))
 
 cfg.procedure = CfgNode(dict(

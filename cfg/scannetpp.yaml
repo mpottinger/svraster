@@ -11,12 +11,10 @@ data:
   eval: True
   extension: JPG
 
-model:
-  outside_level: 0  # No outside region to model.
-
 bounding:
   bound_mode: camera_max
   bound_scale: 2.0
+  outside_level: 0  # No background region
 
 regularizer:
   lambda_T_inside: 0.01

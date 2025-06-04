@@ -8,7 +8,7 @@
 
 # See `src/config.py` for the base setup.
 model:
-  vox_geo_mode: triinterp3
+  n_samp_per_vox: 3
 
 data:
   eval: False

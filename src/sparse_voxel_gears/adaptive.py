@@ -8,7 +8,6 @@
 
 import torch
 
-from src.utils import activation_utils
 from src.utils import octree_utils
 
 '''
