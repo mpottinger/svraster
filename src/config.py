@@ -178,7 +178,6 @@ cfg.procedure = CfgNode(dict(
     subdivide_target_scale = 90.0,
     subdivide_max_num = 10_000_000,
     subdivide_all_until = 0,
-    subdivide_save_gpu = False,
 ))
 
 cfg.auto_exposure = CfgNode(dict(

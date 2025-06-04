@@ -54,16 +54,44 @@ class SVProperties:
     @property
     def signature(self):
         # Signature to check if the voxel grid layout is updated
-        return (
-            self.num_voxels, self.num_grid_pts,
-            id(self.octpath), id(self.octlevel),
-            id(self.vox_key), id(self.grid_pts_key))
+        return (self.num_voxels, id(self.octpath), id(self.octlevel))
+
+    def _check_derived_voxel_attr(self):
+        # Lazy computation of inverse voxel sizes
+        signature = self.signature
+        need_recompute = not hasattr(self, '_check_derived_voxel_attr_signature') or \
+                         self._check_derived_voxel_attr_signature != signature
+        if need_recompute:
+            self._vox_center, self._vox_size = octree_utils.octpath_decoding(
+                self.octpath, self.octlevel, self.scene_center, self.scene_extent)
+            self._grid_pts_key, self._vox_key = octree_utils.build_grid_pts_link(self.octpath, self.octlevel)
+            self._check_derived_voxel_attr_signature = signature
+
+    @property
+    def vox_center(self):
+        self._check_derived_voxel_attr()
+        return self._vox_center
+
+    @property
+    def vox_size(self):
+        self._check_derived_voxel_attr()
+        return self._vox_size
+
+    @property
+    def grid_pts_key(self):
+        self._check_derived_voxel_attr()
+        return self._grid_pts_key
+
+    @property
+    def vox_key(self):
+        self._check_derived_voxel_attr()
+        return self._vox_key
 
     @property
     def vox_size_inv(self):
         # Lazy computation of inverse voxel sizes
         signature = self.signature
-        need_recompute = not hasattr(self, '_vox_size_inv') or \
+        need_recompute = not hasattr(self, '_vox_size_inv_signature') or \
                          self._vox_size_inv_signature != signature
         if need_recompute:
             self._vox_size_inv = 1 / self.vox_size
@@ -74,7 +102,7 @@ class SVProperties:
     def grid_pts_xyz(self):
         # Lazy computation of grid points xyz
         signature = self.signature
-        need_recompute = not hasattr(self, '_grid_pts_xyz') or \
+        need_recompute = not hasattr(self, '_grid_pts_xyz_signature') or \
                          self._grid_pts_xyz_signature != signature
         if need_recompute:
             self._grid_pts_xyz = octree_utils.compute_gridpoints_xyz(

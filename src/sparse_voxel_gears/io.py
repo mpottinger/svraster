@@ -21,7 +21,6 @@ class SVInOut:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         state_dict = {
             'active_sh_degree': self.active_sh_degree,
-            'ss': self.ss,
             'scene_center': self.scene_center.data.contiguous(),
             'inside_extent': self.inside_extent.data.contiguous(),
             'scene_extent': self.scene_extent.data.contiguous(),
@@ -55,7 +54,6 @@ class SVInOut:
             dequantize_state_dict(state_dict)
 
         self.active_sh_degree = state_dict['active_sh_degree']
-        self.ss = state_dict['ss']
 
         self.scene_center = state_dict['scene_center'].cuda()
         self.inside_extent = state_dict['inside_extent'].cuda()
@@ -63,9 +61,6 @@ class SVInOut:
 
         self.octpath = state_dict['octpath'].cuda()
         self.octlevel = state_dict['octlevel'].cuda().to(torch.int8)
-        self.vox_center, self.vox_size = octree_utils.octpath_decoding(
-            self.octpath, self.octlevel, self.scene_center, self.scene_extent)
-        self.grid_pts_key, self.vox_key = octree_utils.build_grid_pts_link(self.octpath, self.octlevel)
 
         self._geo_grid_pts = state_dict['_geo_grid_pts'].cuda().requires_grad_()
         self._sh0 = state_dict['_sh0'].cuda().requires_grad_()

@@ -44,7 +44,6 @@ class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOp
         # List the variable names
         self.per_voxel_attr_lst = [
             'octpath', 'octlevel',
-            'vox_center', 'vox_size',
             'subdiv_meta',
         ]
         self.per_voxel_param_lst = [
@@ -61,10 +60,6 @@ class SparseVoxelModel(SVConstructor, SVProperties, SVRenderer, SVAdaptive, SVOp
         self.inside_extent = None
         self.octpath = None
         self.octlevel = None
-        self.vox_center = None
-        self.vox_size = None
-        self.grid_pts_key = None
-        self.vox_key = None
         self.active_sh_degree = sh_degree
 
         self._geo_grid_pts = None

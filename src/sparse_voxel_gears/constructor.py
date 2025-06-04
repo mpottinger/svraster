@@ -65,10 +65,6 @@ class SVConstructor:
         self.octpath = torch.cat([ou_path, in_path])
         self.octlevel = torch.cat([ou_level, in_level])
 
-        self.vox_center, self.vox_size = octree_utils.octpath_decoding(
-            self.octpath, self.octlevel, self.scene_center, self.scene_extent)
-        self.grid_pts_key, self.vox_key = octree_utils.build_grid_pts_link(self.octpath, self.octlevel)
-
         self.active_sh_degree = min(sh_degree_init, self.max_sh_degree)
 
         # Init trainable parameters

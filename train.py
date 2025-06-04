@@ -379,8 +379,7 @@ def training(args):
 
             # Subdivision
             ori_n = voxel_model.num_voxels
-            if subdivide_mask.sum() > 0:
-                voxel_model.subdividing(subdivide_mask, cfg.procedure.subdivide_save_gpu)
+            voxel_model.subdividing(subdivide_mask)
             new_n = voxel_model.num_voxels
             in_p = voxel_model.inside_mask.float().mean().item()
             print(f'[SUBDIVIDING] {ori_n:7d} => {new_n:7d} (x{new_n/ori_n:.2f}; inside={in_p*100:.1f}%)')
