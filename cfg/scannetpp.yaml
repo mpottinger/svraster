@@ -9,7 +9,7 @@
 # See `src/config.py` for the base setup.
 data:
   eval: True
-  extension: JPG
+  res_downscale: 1.0  # Use source image resolution
 
 bounding:
   bound_mode: camera_max

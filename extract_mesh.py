@@ -371,7 +371,18 @@ if __name__ == "__main__":
     update_config(os.path.join(args.model_path, 'config.yaml'))
 
     # Load data
-    data_pack = DataPack(cfg.data, cfg.model.white_background)
+    data_pack = DataPack(
+        source_path=cfg.data.source_path,
+        image_dir_name=cfg.data.image_dir_name,
+        res_downscale=cfg.data.res_downscale,
+        res_width=cfg.data.res_width,
+        skip_blend_alpha=cfg.data.skip_blend_alpha,
+        alpha_is_white=cfg.model.white_background,
+        data_device=cfg.data.data_device,
+        use_test=cfg.data.eval,
+        test_every=cfg.data.test_every,
+        camera_params_only=True,
+    )
 
     # Load model
     voxel_model = SparseVoxelModel(

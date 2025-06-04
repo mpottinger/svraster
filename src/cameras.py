@@ -115,12 +115,6 @@ class CameraBase:
 
         return normal_pseudo
 
-    def composite_bg_color(self, bg_color):
-        if self.mask is None:
-            return
-        bg_color = bg_color.view(3, 1, 1).to(self.image.device)
-        self.image = self.image * self.mask + (1 - self.mask) * bg_color
-
 
 class Camera(CameraBase):
     def __init__(
@@ -131,7 +125,6 @@ class Camera(CameraBase):
             sparse_pt=None):
 
         self.image_name = image_name
-        self.cam_mode = 'persp'
 
         # Camera parameters
         self.w2c = torch.tensor(w2c, dtype=torch.float32, device="cuda")
@@ -205,10 +198,10 @@ class MiniCam(CameraBase):
             c2w, fovx, fovy,
             width, height,
             near=0.02,
-            cx_p=None, cy_p=None):
+            cx_p=None, cy_p=None,
+            image_name="minicam"):
 
-        self.image_name = 'minicam'
-        self.cam_mode = 'persp'
+        self.image_name = image_name
         self.c2w = torch.tensor(c2w).clone().cuda()
         self.w2c = self.c2w.inverse()
 

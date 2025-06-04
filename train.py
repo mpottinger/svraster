@@ -1,14 +1,3 @@
-#
-# Copyright (C) 2023, Inria
-# GRAPHDECO research group, https://team.inria.fr/graphdeco
-# All rights reserved.
-#
-# This software is free for non-commercial, research and evaluation use 
-# under the terms of the LICENSE.md file.
-#
-# For inquiries contact  george.drettakis@inria.fr
-#
-
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
@@ -18,7 +7,6 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import os
-import sys
 import json
 import time
 import uuid
@@ -26,7 +14,6 @@ import imageio
 import datetime
 import numpy as np
 from tqdm import tqdm
-from random import randint
 
 import torch
 
@@ -46,7 +33,17 @@ import svraster_cuda
 
 def training(args):
     # Init and load data pack
-    data_pack = DataPack(cfg.data, cfg.model.white_background)
+    data_pack = DataPack(
+        source_path=cfg.data.source_path,
+        image_dir_name=cfg.data.image_dir_name,
+        res_downscale=cfg.data.res_downscale,
+        res_width=cfg.data.res_width,
+        skip_blend_alpha=cfg.data.skip_blend_alpha,
+        alpha_is_white=cfg.model.white_background,
+        data_device=cfg.data.data_device,
+        use_test=cfg.data.eval,
+        test_every=cfg.data.test_every,
+    )
 
     # Instantiate data loader
     tr_cams = data_pack.get_train_cameras()

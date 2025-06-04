@@ -22,18 +22,13 @@ cfg.model = CfgNode(dict(
 
 cfg.data = CfgNode(dict(
     source_path = "",
-    images = "images",
-    load_depth = False,
-    load_mask = False,
+    image_dir_name = "images",
     res_downscale = 0.,
     res_width = 0,
-    extension = ".png",
-    blend_mask = True,
-    depth_paths = "",
-    depth_scale = 1.0,
+    skip_blend_alpha = False,
     data_device = "cpu",
     eval = False,
-    test_every = 8, # Only if dataset has no testset && eval=True
+    test_every = 8,
 ))
 
 cfg.bounding = CfgNode(dict(

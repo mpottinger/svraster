@@ -1,14 +1,3 @@
-#
-# Copyright (C) 2023, Inria
-# GRAPHDECO research group, https://team.inria.fr/graphdeco
-# All rights reserved.
-#
-# This software is free for non-commercial, research and evaluation use 
-# under the terms of the LICENSE.md file.
-#
-# For inquiries contact  george.drettakis@inria.fr
-#
-
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
@@ -19,149 +8,49 @@
 
 import os
 import json
+import pycolmap
 import numpy as np
 from PIL import Image
 from pathlib import Path
 
+from src.utils.colmap_utils import parse_colmap_pts
 from src.utils.camera_utils import fov2focal, focal2fov
-from .colmap_loader import fetchPly
-from .reader_scene_info import CameraInfo, PointCloud, SceneInfo
 
 
-def parse_principle_point(info, is_cx):
-    key = "cx" if is_cx else "cy"
-    key_res = "w" if is_cx else "h"
-    if f"{key}_p" in info:
-        return info[f"{key}_p"]
-    if key in info and key_res in info:
-        return info[key] / info[key_res]
-    return None
+def read_nerf_dataset(source_path, test_every, use_test, camera_creator):
 
+    source_path = Path(source_path)
 
-def read_a_camera(frame, fovx, fovy, cx_p, cy_p, path, extension,
-                  load_depth=False, load_mask=False, points=None, correspondent=None):
-    # Guess the rgb image path and load image
-    image_path = os.path.join(path, frame["file_path"] + extension)
-    if not os.path.exists(image_path):
-        image_path = os.path.join(path, frame["file_path"])
-    image_name = Path(image_path).stem
-    image = Image.open(image_path)
-
-    # Load per-frame camera parameters
-    fovx = frame.get('camera_angle_x', fovx)
-    cx_p = frame.get('cx_p', cx_p)
-    cy_p = frame.get('cy_p', cy_p)
-
-    if 'camera_angle_y' in frame:
-        fovy = frame['camera_angle_y']
-    elif fovy <= 0:
-        fovy = focal2fov(fov2focal(fovx, image.size[0]), image.size[1])
-
-    # Load camera-to-world
-    c2w = np.array(frame["transform_matrix"])
-    # change from OpenGL/Blender camera axes (Y up, Z back) to COLMAP (Y down, Z forward)
-    c2w[:3, 1:3] *= -1
-
-    # Compute the world-to-camera transform
-    w2c = np.linalg.inv(c2w).astype(np.float32)
-
-    # Load depth if there is
-    if load_depth:
-        assert "depth_path" in frame
-        depth_path = os.path.join(path, frame["depth_path"])
-        depth = Image.open(depth_path)
+    # Load training cameras
+    if (source_path / "transforms_train.json").exists():
+        train_cam_lst, point_cloud = read_cameras_from_json(
+            source_path=source_path,
+            meta_fname="transforms_train.json",
+            camera_creator=camera_creator)
     else:
-        depth_path = ""
-        depth = None
+        train_cam_lst, point_cloud = read_cameras_from_json(
+            source_path=source_path,
+            meta_fname="transforms.json",
+            camera_creator=camera_creator)
 
-    # Load mask if there is
-    if load_mask:
-        assert "mask_path" in frame
-        mask_path = os.path.join(path, frame["mask_path"])
-        mask = Image.open(mask_path)
+    # Load testing cameras
+    if (source_path / "transforms_test.json").exists():
+        test_cam_lst, _ = read_cameras_from_json(
+            source_path=source_path,
+            meta_fname="transforms_test.json",
+            camera_creator=camera_creator)
+    elif use_test:
+        test_cam_lst = [
+            cam for i, cam in enumerate(train_cam_lst)
+            if i % test_every == 0]
+        train_cam_lst = [
+            cam for i, cam in enumerate(train_cam_lst)
+            if i % test_every != 0]
     else:
-        mask_path = ""
-        mask = None
+        test_cam_lst = []
 
-    # Load sparse point
-    if points is not None:
-        key = f"{image_name}.{extension}"
-        sparse_pt = points[correspondent[key]]
-    else:
-        sparse_pt = None
-
-    return CameraInfo(
-        image_name=image_name,
-        w2c=w2c,
-        fovx=fovx, fovy=fovy,
-        width=image.size[0], height=image.size[1],
-        cx_p=cx_p, cy_p=cy_p,
-        image=image, image_path=image_path,
-        depth=depth, depth_path=depth_path,
-        mask=mask, mask_path=mask_path,
-        sparse_pt=sparse_pt,
-    )
-
-def read_cameras_from_json(path, transformsfile, extension=".png",
-                           load_depth=False, load_mask=False, points=None, correspondent=None):
-
-    with open(os.path.join(path, transformsfile)) as json_file:
-        contents = json.load(json_file)
-
-    fovx = contents.get("camera_angle_x", 0)
-    fovy = contents.get("camera_angle_y", 0)
-    cx_p = parse_principle_point(contents, is_cx=True)
-    cy_p = parse_principle_point(contents, is_cx=False)
-    frames = contents["frames"]
-
-    cam_infos = [
-        read_a_camera(frame, fovx, fovy, cx_p, cy_p, path, extension,
-                      load_depth, load_mask, points, correspondent)
-        for idx, frame in enumerate(frames)]
-
-    return cam_infos
-
-def read_nerf_dataset(path, extension, test_every, eval, load_depth=False, load_mask=False):
-    # Read SfM sparse points if there is
-    point_cloud = None
-    correspondent = None
-
-    ply_path = os.path.join(path, "points3D.ply")
-    if os.path.exists(ply_path):
-        points, colors, normals = fetchPly(ply_path)
-        point_cloud = PointCloud(
-            points=points,
-            colors=colors,
-            normals=normals,
-            ply_path=ply_path)
-    else:
-        points = None
-
-    cor_path = os.path.join(path, "points_correspondent.json")
-    if os.path.exists(cor_path):
-        assert point_cloud is not None
-        with open(cor_path) as f:
-            correspondent = json.load(f)
-
-    # Load train/test camera info
-    if os.path.exists(os.path.join(path, "transforms_train.json")):
-        train_cam_infos = read_cameras_from_json(
-            path, "transforms_train.json", extension, load_depth, load_mask, points, correspondent)
-        test_cam_infos = read_cameras_from_json(
-            path, "transforms_test.json", extension, load_depth, load_mask, points, correspondent)
-        if not eval:
-            train_cam_infos.extend(test_cam_infos)
-            test_cam_infos = []
-    else:
-        train_cam_infos = read_cameras_from_json(
-            path, "transforms.json", extension, load_depth, load_mask, points, correspondent)
-        test_cam_infos = []
-        if eval:
-            test_cam_infos = [c for idx, c in enumerate(train_cam_infos) if idx % test_every == 0]
-            train_cam_infos = [c for idx, c in enumerate(train_cam_infos) if idx % test_every != 0]
-
-    # Parse main scene bound
-    nerf_normalization_path = os.path.join(path, "nerf_normalization.json")
+    # Parse main scene bound if there is
+    nerf_normalization_path = os.path.join(source_path, "nerf_normalization.json")
     if os.path.isfile(nerf_normalization_path):
         with open(nerf_normalization_path) as f:
             nerf_normalization = json.load(f)
@@ -172,16 +61,110 @@ def read_nerf_dataset(path, extension, test_every, eval, load_depth=False, load_
             suggested_center + suggested_radius,
         ])
     else:
-        # Use 3DGS's setup for synthetic blender scene bound
+        # Assume synthetic blender scene bound
         suggested_bounding = np.array([
             [-1.5, -1.5, -1.5],
             [1.5, 1.5, 1.5],
         ], dtype=np.float32)
 
-    # Pack scene info
-    scene_info = SceneInfo(
-        train_cam_infos=train_cam_infos,
-        test_cam_infos=test_cam_infos,
-        suggested_bounding=suggested_bounding,
-        point_cloud=point_cloud)
-    return scene_info
+    # Pack dataset
+    dataset = {
+        'train_cam_lst': train_cam_lst,
+        'test_cam_lst': test_cam_lst,
+        'suggested_bounding': suggested_bounding,
+        'point_cloud': point_cloud,
+    }
+    return dataset
+
+
+def read_cameras_from_json(source_path, meta_fname, camera_creator):
+
+    with open(source_path / meta_fname) as f:
+        meta = json.load(f)
+
+    # Load COLMAP points if there is
+    if "colmap" in meta:
+        sfm = pycolmap.Reconstruction(source_path / meta["colmap"]["path"])
+        if "transform" in meta["colmap"]:
+            transform = np.array(meta["colmap"]["transform"])
+        else:
+            transform = None
+        point_cloud = parse_colmap_pts(sfm, transform)
+        correspondent = point_cloud.corr
+    else:
+        point_cloud = None
+        correspondent = None
+
+    # Load global setup
+    global_fovx = meta.get("camera_angle_x", 0)
+    global_fovy = meta.get("camera_angle_y", 0)
+    global_cx_p = parse_principle_point(meta, is_cx=True)
+    global_cy_p = parse_principle_point(meta, is_cx=False)
+
+    # Load all images and cameras
+    cam_lst = []
+    for frame in meta["frames"]:
+
+        # Guess the rgb image path and load image
+        path_candidates = [
+            source_path / frame["file_path"],
+            source_path / (frame["file_path"] + '.png'),
+            source_path / (frame["file_path"] + '.jpg'),
+            source_path / (frame["file_path"] + '.JPG'),
+        ]
+        for image_path in path_candidates:
+            if image_path.exists():
+                break
+
+        if frame.get('heldout', False):
+            image = Image.new('RGB', (frame['w'], frame['h']))
+        elif image_path.exists():
+            image = Image.open(image_path)
+        else:
+            raise Exception(f"File not found: {str(image_path)}")
+
+        # Load camera intrinsic
+        fovx = frame.get('camera_angle_x', global_fovx)
+        cx_p = frame.get('cx_p', global_cx_p)
+        cy_p = frame.get('cy_p', global_cy_p)
+
+        if 'camera_angle_y' in frame:
+            fovy = frame['camera_angle_y']
+        elif global_fovy > 0:
+            fovy = global_fovy
+        else:
+            fovy = focal2fov(fov2focal(fovx, image.size[0]), image.size[1])
+
+        # Load camera pose
+        c2w = np.array(frame["transform_matrix"])
+        c2w[:3, 1:3] *= -1  # from opengl y-up-z-back to colmap y-down-z-forward
+        w2c = np.linalg.inv(c2w).astype(np.float32)
+
+        # Load sparse point
+        if point_cloud is not None:
+            sparse_pt = point_cloud.points[correspondent[image_path.name]]
+        else:
+            sparse_pt = None
+
+        cam_lst.append(camera_creator(
+            image=image,
+            w2c=w2c,
+            fovx=fovx,
+            fovy=fovy,
+            cx_p=cx_p,
+            cy_p=cy_p,
+            sparse_pt=sparse_pt,
+            image_name=image_path.name,
+        ))
+
+    return cam_lst, point_cloud
+
+
+def parse_principle_point(info, is_cx):
+    key = "cx" if is_cx else "cy"
+    key_res = "w" if is_cx else "h"
+    if f"{key}_p" in info:
+        return info[f"{key}_p"]
+    if key in info and key_res in info:
+        return info[key] / info[key_res]
+    return None

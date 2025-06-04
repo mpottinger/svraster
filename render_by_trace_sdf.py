@@ -1,3 +1,14 @@
+#
+# Copyright (C) 2023, Inria
+# GRAPHDECO research group, https://team.inria.fr/graphdeco
+# All rights reserved.
+#
+# This software is free for non-commercial, research and evaluation use 
+# under the terms of the LICENSE.md file.
+#
+# For inquiries contact  george.drettakis@inria.fr
+#
+
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
@@ -20,44 +31,34 @@ from src.config import cfg, update_argparser, update_config
 from src.dataloader.data_pack import DataPack
 from src.sparse_voxel_model import SparseVoxelModel
 from src.utils.image_utils import im_tensor2np, viz_tensordepth
+from src.utils.fuser_utils import Fuser
 
 
 @torch.no_grad()
 def render_set(name, iteration, suffix, args, views, voxel_model):
 
-    render_path = os.path.join(args.model_path, name, f"ours_{iteration}{suffix}", "renders")
-    gts_path = os.path.join(args.model_path, name, f"ours_{iteration}{suffix}", "gt")
-    alpha_path = os.path.join(args.model_path, name, f"ours_{iteration}{suffix}", "alpha")
-    viz_path = os.path.join(args.model_path, name, f"ours_{iteration}{suffix}", "viz")
+    render_path = os.path.join(args.model_path, name, f"ours_{iteration}{suffix}_trace_by_sdf", "renders")
     makedirs(render_path, exist_ok=True)
-    makedirs(gts_path, exist_ok=True)
-    makedirs(alpha_path, exist_ok=True)
-    makedirs(viz_path, exist_ok=True)
     print(f'render_path: {render_path}')
     print(f'ss            =: {voxel_model.ss}')
-    print(f'n_samp_per_vox=: {voxel_model.n_samp_per_vox}')
+    print(f'vox_geo_mode  =: {voxel_model.vox_geo_mode}')
+    print(f'density_mode  =: {voxel_model.density_mode}')
 
     if args.eval_fps:
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
 
-    tr_render_opt = {
-        'track_max_w': False,
-        'output_depth': not args.eval_fps,
-        'output_normal': not args.eval_fps,
-        'output_T': not args.eval_fps,
-    }
-
     if args.eval_fps:
         # Warmup
-        voxel_model.render(views[0], **tr_render_opt)
+        voxel_model.render_trace_sdf(views[0])
 
     eps_time = time.perf_counter()
     psnr_lst = []
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-        render_pkg = voxel_model.render(view, **tr_render_opt)
+        hit_depth, hit_vox_id = voxel_model.render_trace_sdf(view)
         if not args.eval_fps:
-            rendering = render_pkg['color']
+            rendering = voxel_model._sh0[hit_vox_id].moveaxis(-1, 0)
+            rendering *= (hit_vox_id != -1)
             gt = view.image.cuda()
             mse = (rendering.clip(0,1) - gt.clip(0,1)).square().mean()
             psnr = -10 * torch.log10(mse)
@@ -69,47 +70,10 @@ def render_set(name, iteration, suffix, args, views, voxel_model):
                 os.path.join(render_path, fname + (".jpg" if args.use_jpg else ".png")),
                 im_tensor2np(rendering)
             )
-            if args.rgb_only:
-                continue
-            imageio.imwrite(
-                os.path.join(gts_path, fname + ".png"),
-                im_tensor2np(gt)
-            )
-            # Alpha
-            imageio.imwrite(
-                os.path.join(alpha_path, fname + ".alpha.jpg"),
-                im_tensor2np(1-render_pkg['T'])[...,None].repeat(3, axis=-1)
-            )
-            # Depth
-            imageio.imwrite(
-                os.path.join(viz_path, fname + ".depth_med_viz.jpg"),
-                viz_tensordepth(render_pkg['depth'][2])
-            )
-            imageio.imwrite(
-                os.path.join(viz_path, fname + ".depth_viz.jpg"),
-                viz_tensordepth(render_pkg['depth'][0], 1-render_pkg['T'][0])
-            )
-            # Normal
-            depth_med2normal = view.depth2normal(render_pkg['depth'][2])
-            depth2normal = view.depth2normal(render_pkg['depth'][0])
-            imageio.imwrite(
-                os.path.join(viz_path, fname + ".depth_med2normal.jpg"),
-                im_tensor2np(depth_med2normal * 0.5 + 0.5)
-            )
-            imageio.imwrite(
-                os.path.join(viz_path, fname + ".depth2normal.jpg"),
-                im_tensor2np(depth2normal * 0.5 + 0.5)
-            )
-            render_normal = render_pkg['normal']
-            imageio.imwrite(
-                os.path.join(viz_path, fname + ".normal.jpg"),
-                im_tensor2np(render_normal * 0.5 + 0.5)
-            )
     torch.cuda.synchronize()
     eps_time = time.perf_counter() - eps_time
     peak_mem = torch.cuda.memory_stats()["allocated_bytes.all.peak"] / 1024 ** 3
     if args.eval_fps:
-        print(f'Resolution:', tuple(render_pkg['color'].shape[-2:]))
         print(f'Eps time: {eps_time:.3f} sec')
         print(f"Peak mem: {peak_mem:.2f} GB")
         print(f'FPS     : {len(views)/eps_time:.0f}')
@@ -135,10 +99,9 @@ if __name__ == "__main__":
     parser.add_argument("--eval_fps", action="store_true")
     parser.add_argument("--clear_res_down", action="store_true")
     parser.add_argument("--suffix", default="", type=str)
-    parser.add_argument("--rgb_only", action="store_true")
     parser.add_argument("--use_jpg", action="store_true")
     parser.add_argument("--overwrite_ss", default=None, type=float)
-    parser.add_argument("--overwrite_n_samp_per_vox", default=None)
+    parser.add_argument("--overwrite_vox_geo_mode", default=None)
     args = parser.parse_args()
     print("Rendering " + args.model_path)
 
@@ -150,27 +113,10 @@ if __name__ == "__main__":
         cfg.data.res_width = 0
 
     # Load data
-    data_pack = DataPack(
-        source_path=cfg.data.source_path,
-        image_dir_name=cfg.data.image_dir_name,
-        res_downscale=cfg.data.res_downscale,
-        res_width=cfg.data.res_width,
-        skip_blend_alpha=cfg.data.skip_blend_alpha,
-        alpha_is_white=cfg.model.white_background,
-        data_device=cfg.data.data_device,
-        use_test=cfg.data.eval,
-        test_every=cfg.data.test_every,
-        camera_params_only=args.eval_fps,
-    )
+    data_pack = DataPack(cfg.data, cfg.model.white_background, camera_params_only=False)
 
     # Load model
-    voxel_model = SparseVoxelModel(
-        n_samp_per_vox=cfg.model.n_samp_per_vox,
-        sh_degree=cfg.model.sh_degree,
-        ss=cfg.model.ss,
-        white_background=cfg.model.white_background,
-        black_background=cfg.model.black_background,
-    )
+    voxel_model = SparseVoxelModel(cfg.model)
     loaded_iter = voxel_model.load_iteration(args.model_path, args.iteration)
 
     # Output path suffix
@@ -186,11 +132,38 @@ if __name__ == "__main__":
         if not args.suffix:
             suffix += f"_ss{args.overwrite_ss:.2f}"
     
-    if args.overwrite_n_samp_per_vox:
-        voxel_model.n_samp_per_vox = args.overwrite_n_samp_per_vox
+    if args.overwrite_vox_geo_mode:
+        voxel_model.vox_geo_mode = args.overwrite_vox_geo_mode
         if not args.suffix:
-            suffix += f"_{args.overwrite_n_samp_per_vox}"
+            suffix += f"_{args.overwrite_vox_geo_mode}"
 
+    # Fuse sdf and rgb
+    volume = Fuser(
+        xyz=voxel_model.grid_pts_xyz,
+        bandwidth=voxel_model.vox_size.min().item() * 20,
+        # bandwidth=torch.zeros([len(voxel_model.grid_pts_xyz)], dtype=torch.float32, device="cuda").index_reduce_(
+        #     dim=0,
+        #     index=voxel_model.vox_key.flatten(),
+        #     source=voxel_model.vox_size.repeat(1, 8).flatten(),
+        #     reduce="amax") * 3,
+        use_trunc=True,
+        fuse_tsdf=True,
+        feat_dim=3)
+
+    for cam in tqdm(data_pack.get_train_cameras()):
+        median_depth, median_idx = voxel_model.render_median(cam)
+        volume.integrate(cam=cam, feat=cam.image.cuda(), depth=median_depth)
+
+    voxel_model._shs.data.fill_(0)
+    voxel_model._sh0.data.copy_(
+        volume.feature.nan_to_num_()[voxel_model.vox_key].mean(dim=1))
+    voxel_model._geo_grid_pts.data.copy_(
+        volume.tsdf.nan_to_num_())
+
+    del volume
+    torch.cuda.empty_cache()
+
+    # Start rendering
     voxel_model.freeze_vox_geo()
 
     if not args.skip_train:

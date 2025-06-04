@@ -9,7 +9,7 @@
 # See `src/config.py` for the base setup.
 data:
   eval: False
-  blend_mask: False
+  skip_blend_alpha: True
   res_downscale: 2.0
 
 bounding:

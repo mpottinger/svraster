@@ -126,7 +126,7 @@ We can fuse 2D vision foundation feature or sementic segmentation results into v
 ## Experiments on public dataset
 
 **Note:** Be sure to double check the following two experimental details which has non-trivial impact to the quantitative results.
-- Ground-truth downsampling: Results from (1) the internal downsampling `--res_downscale` and (2) the preprocessed down-sampled images specified by `--images` are very different. We follow the original 3DGS to use `--images`.
+- Ground-truth downsampling: Results from (1) the internal downsampling `--res_downscale` and (2) the preprocessed down-sampled images specified by `--image_dir_name` are very different. We follow the original 3DGS to use `--image_dir_name`.
 - LPIPS input scale: We follow the original 3DGS to use RGB in range of [0, 1] as default. The correct implementation should be in [-1, 1] which is reported as the corrected LPIPS by `eval.py`.
 
 ### Download the 3rd-party processed datasets
