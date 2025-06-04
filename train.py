@@ -71,11 +71,13 @@ def training(args):
 
     # Decide main (inside) region bounding box
     bounding = decide_main_bounding(
-        cfg_bounding=cfg.bounding,
+        bound_mode=cfg.bounding.bound_mode,
+        forward_dist_scale=cfg.bounding.forward_dist_scale,
+        pcd_density_rate=cfg.bounding.pcd_density_rate,
+        bound_scale=cfg.bounding.bound_scale,
         tr_cams=tr_cams,
-        pcd=data_pack.point_cloud,  # Not used
-        suggested_bounding=data_pack.suggested_bounding,  # Can be None
-    )
+        pcd=data_pack.point_cloud,
+        suggested_bounding=data_pack.suggested_bounding)
 
     # Init voxel model
     voxel_model = SparseVoxelModel(
