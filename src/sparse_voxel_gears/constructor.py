@@ -43,7 +43,7 @@ class SVConstructor:
             outside_level=outside_level,
             n_level=init_n_level,
             cameras=cameras,
-            filter_zero_visiblity=True,
+            filter_zero_visiblity=(cameras is not None),
             filter_near=-1)
 
         if outside_level == 0:
