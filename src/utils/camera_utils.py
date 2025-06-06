@@ -56,3 +56,24 @@ def interpolate_poses(poses, n_frame, periodic=True):
         interp_poses.append(c2w)
 
     return interp_poses
+
+
+def gen_circular_poses(radius,
+                       n_frame,
+                       starting=1.5 * np.pi, # Starting from -z
+                       ):
+    poses = []
+    for rad in np.linspace(starting, starting + 2 * np.pi, n_frame):
+        pos = radius * np.array([np.cos(rad), 0, np.sin(rad)])
+        lookat = -pos / np.linalg.norm(pos)
+        down = np.array([0, 1, 0])
+        right = np.cross(down, lookat)
+        right = right / np.linalg.norm(right)
+        down = np.cross(lookat, right)
+        c2w = np.eye(4, dtype=np.float32)
+        c2w[:3, 0] = right
+        c2w[:3, 1] = down
+        c2w[:3, 2] = lookat
+        c2w[:3, 3] = pos
+        poses.append(c2w)
+    return poses
