@@ -321,7 +321,6 @@ class GatherGeoParams(torch.autograd.Function):
     def forward(
         ctx,
         vox_key,
-        vox_size_inv,
         care_idx,
         grid_pts,
     ):
@@ -332,18 +331,18 @@ class GatherGeoParams(torch.autograd.Function):
         geo_params = _C.gather_triinterp_geo_params(vox_key, care_idx, grid_pts)
 
         ctx.num_grid_pts = grid_pts.numel()
-        ctx.save_for_backward(vox_key, vox_size_inv, care_idx)
+        ctx.save_for_backward(vox_key, care_idx)
         return geo_params
 
     @staticmethod
     def backward(ctx, dL_dgeo_params):
         # Restore necessary values from context
         num_grid_pts = ctx.num_grid_pts
-        vox_key, vox_size_inv, care_idx = ctx.saved_tensors
+        vox_key, care_idx = ctx.saved_tensors
 
         dL_dgrid_pts = _C.gather_triinterp_geo_params_bw(vox_key, care_idx, num_grid_pts, dL_dgeo_params)
 
-        return None, None, None, dL_dgrid_pts
+        return None, None, dL_dgrid_pts
 
 
 class GatherFeatParams(torch.autograd.Function):

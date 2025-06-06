@@ -20,7 +20,6 @@ class SVRenderer:
         with torch.no_grad():
             self.frozen_vox_geo = svraster_cuda.renderer.GatherGeoParams.apply(
                 self.vox_key,
-                self.vox_size_inv,
                 torch.arange(self.num_voxels, device="cuda"),
                 self._geo_grid_pts
             )
@@ -54,7 +53,6 @@ class SVRenderer:
         else:
             geos = svraster_cuda.renderer.GatherGeoParams.apply(
                 self.vox_key,
-                self.vox_size_inv,
                 idx,
                 self._geo_grid_pts
             )
