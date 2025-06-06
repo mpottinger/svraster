@@ -10,6 +10,7 @@ We propose an efficient radiance field rendering algorithm that incorporates a r
 </details>
 
 **Updates:**
+- Jun 6, 2025: Major code refactoring. Check this [guide](./articles/model_creation_tutor.md) to create model from voxels or points in a differentiable way.
 - Mar 18, 2025: Revise literature review. Support depthanythingv2 relative depth loss and mast3r metric depth loss for a better geometry.
 - Mar 8, 2025: Support ScanNet++ dataset. Check the [benchmark](https://kaldir.vc.in.tum.de/scannetpp/benchmark/nvs) for our results on the 3rd-party hidden set evaluation. Our [short article](./articles/scannetpp_dataset.md) may be helpful if you want to work on scannet or indoor environement.
 
@@ -123,6 +124,12 @@ We can fuse 2D vision foundation feature or sementic segmentation results into v
     - The final fields are a coarser vision foundation model feature field and a density field in original high-resolution.
     - ![fusing_radio](asset/fusing_radio.jpg)
 
+
+## Documents
+- Check [model_creation_tutor](./articles/model_creation_tutor.md) for a tutorial on various ways to create a model instance.
+- Check [model_functions](./articles/model_functions.md) for the properties and functions of a model instances.
+
+
 ## Experiments on public dataset
 
 **Note:** Be sure to double check the following two experimental details which has non-trivial impact to the quantitative results.
@@ -163,15 +170,19 @@ python scripts/tnt_stat.py            output/tnt/baseline
 
 
 ## Acknowledgement
-Our method is developed on the amazing open-source codebase: [gaussian-splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [diff-gaussian-rasterization](https://github.com/graphdeco-inria/diff-gaussian-rasterization).
+Our code is originally developed on the amazing open-source codebase: [gaussian-splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [diff-gaussian-rasterization](https://github.com/graphdeco-inria/diff-gaussian-rasterization). The codebase has been very different now.
 
 If you find our work useful in your research, please be so kind to give us a star and citing our paper.
 ```bibTeX
-@article{Sun2024SVR,
-  title={Sparse Voxels Rasterization: Real-time High-fidelity Radiance Field Rendering},
-  author={Cheng Sun and Jaesung Choe and Charles Loop and Wei-Chiu Ma and Yu-Chiang Frank Wang},
-  journal={ArXiv},
-  year={2024},
-  volume={abs/2412.04459},
+@inproceedings{svraster,
+  author       = {Cheng Sun and
+                  Jaesung Choe and
+                  Charles Loop and
+                  Wei{-}Chiu Ma and
+                  Yu{-}Chiang Frank Wang},
+  title        = {Sparse Voxels Rasterization: Real-time High-fidelity Radiance Field
+                  Rendering},
+  booktitle    = {{CVPR}},
+  year         = {2025},
 }
 ```
