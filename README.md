@@ -10,7 +10,7 @@ We propose an efficient radiance field rendering algorithm that incorporates a r
 </details>
 
 **Updates:**
-- Jun 6, 2025: Major code refactoring. Check this [guide](./articles/model_creation_tutor.md) to create model from voxels or points in a differentiable way.
+- Jun 6, 2025: Major code refactoring. Add [document](./articles/model_creation_tutor.md) to create model from voxels or points in a differentiable way.
 - Mar 18, 2025: Revise literature review. Support depthanythingv2 relative depth loss and mast3r metric depth loss for a better geometry.
 - Mar 8, 2025: Support ScanNet++ dataset. Check the [benchmark](https://kaldir.vc.in.tum.de/scannetpp/benchmark/nvs) for our results on the 3rd-party hidden set evaluation. Our [short article](./articles/scannetpp_dataset.md) may be helpful if you want to work on scannet or indoor environement.
 
