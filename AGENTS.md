@@ -30,3 +30,6 @@ Preserve line numbers in comments for traceability. Strip license headers for br
 - Preprocess step in `preprocess.cu` computes camera-quadrant bitsets and bounding boxes to decide which voxels are rendered.
 
 Append any new file paths or important functions to this document as they are discovered.
+Recent additions:
+- `docs/rendering_pipeline_snippets.md` stores extracted code snippets with line numbers.
+- Core kernels found: `preprocessCUDA`, `duplicateWithKeys`, `identifyTileRanges`, `rasterize_voxels_procedure`, and `renderCUDA`.
