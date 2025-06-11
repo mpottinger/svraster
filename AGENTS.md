@@ -1152,3 +1152,4 @@ The rendering pipeline snippets previously stored in docs/rendering_pipeline_sni
    234	
    235	        dL_dgeos, dL_drgbs, subdiv_p_bw = _C.rasterize_voxels_backward(*args)
    236	
+```
