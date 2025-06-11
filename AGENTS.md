@@ -33,6 +33,10 @@ Append any new file paths or important functions to this document as they are di
 Recent additions:
 - `docs/rendering_pipeline_snippets.md` stores extracted code snippets with line numbers.
 - Core kernels found: `preprocessCUDA`, `duplicateWithKeys`, `identifyTileRanges`, `rasterize_voxels_procedure`, and `renderCUDA`.
+- Header helpers gathered from `auxiliary.h`: `compute_ray_quadrant_id`, `compute_corner_quadrant_id`,
+  `transform_3x4`, `rotate_3x4`, `ray_aabb`, `tri_interp_weight`.
+- Key constants from `config.h`: `BLOCK_X`, `BLOCK_Y`, `MAX_NUM_LEVELS`, `MAX_ALPHA`,
+  `STEP_SZ_SCALE`, `MAX_N_SAMP`, `EARLY_STOP_T`, `NUM_BIT_ORDER_RANK`.
 
 The rendering pipeline snippets previously stored in docs/rendering_pipeline_snippets.md are now consolidated below.
 # Rendering Pipeline Snippets
@@ -1152,4 +1156,99 @@ The rendering pipeline snippets previously stored in docs/rendering_pipeline_sni
    234	
    235	        dL_dgeos, dL_drgbs, subdiv_p_bw = _C.rasterize_voxels_backward(*args)
    236	
+```
+===== FILE: cuda/src/config.h =====
+```
+    11  #ifndef RASTERIZER_CONFIG_H_INCLUDED
+    12  #define RASTERIZER_CONFIG_H_INCLUDED
+
+    14  #define BLOCK_X 16
+    15  #define BLOCK_Y 16
+    16  #define MAX_NUM_LEVELS 16
+    17  #define MAX_ALPHA 0.99999f
+    18  #define MIN_ALPHA 0.00001f
+    19  #define EARLY_STOP_T 0.0001f
+
+    21  #define STEP_SZ_SCALE 100.f
+
+    23  #define MAX_N_SAMP 3
+
+    25  // Below are the derived term from above
+    26  #define BLOCK_SIZE (BLOCK_X * BLOCK_Y)
+    27  #define NUM_BIT_ORDER_RANK (3 * MAX_NUM_LEVELS)
+    28  #define NUM_BIT_TILE_ID (64 - NUM_BIT_ORDER_RANK)
+
+    30  #endif
+
+===== FILE: cuda/src/auxiliary.h =====
+```
+    60  __forceinline__ __device__ uint32_t decode_order_val_4_quadrant_id(uint32_t val)
+    61  {
+    62      return val >> 29;
+    63  }
+
+    65  __forceinline__ __device__ uint32_t compute_ray_quadrant_id(float3 rd)
+    66  {
+    67      return ((rd.x < 0) << 2) | ((rd.y < 0) << 1) | (rd.z < 0);
+    68  }
+
+    70  __forceinline__ __device__ uint32_t compute_corner_quadrant_id(float3 corner, float3 ro)
+    71  {
+    72      return ((corner.x < ro.x) << 2) | ((corner.y < ro.y) << 1) | (corner.z < ro.z);
+    73  }
+
+    214  __forceinline__ __device__ float3 transform_3x4(const float* matrix, const float3& p)
+    215  {
+    216      float3 transformed = {
+    217          matrix[0] * p.x + matrix[1] * p.y + matrix[2] * p.z + matrix[3],
+    218          matrix[4] * p.x + matrix[5] * p.y + matrix[6] * p.z + matrix[7],
+    219          matrix[8] * p.x + matrix[9] * p.y + matrix[10] * p.z + matrix[11]
+    220      };
+    221      return transformed;
+    222  }
+
+    224  __forceinline__ __device__ float3 rotate_3x4(const float* matrix, const float3& p)
+    225  {
+    226      float3 transformed = {
+    227          matrix[0] * p.x + matrix[1] * p.y + matrix[2] * p.z,
+    228          matrix[4] * p.x + matrix[5] * p.y + matrix[6] * p.z,
+    229          matrix[8] * p.x + matrix[9] * p.y + matrix[10] * p.z
+    230      };
+    231      return transformed;
+    232  }
+
+    235  __forceinline__ __device__ float depth_contracted(float x)
+    236  {
+    237      return (x < 1.f) ? x : 2.f - 1.f / x;
+    238  }
+
+    240  __forceinline__ __device__ float2 ray_aabb(float3 vox_c, float vox_l, float3 ro, float3 rd_inv)
+    241  {
+    242      float vox_r = 0.5f * vox_l;
+    243      float3 dir = vox_c - ro;
+    244      float3 c0_ = (dir - vox_r) * rd_inv;
+    245      float3 c1_ = (dir + vox_r) * rd_inv;
+    246      float3 c0 = make_float3(min(c0_.x, c1_.x), min(c0_.y, c1_.y), min(c0_.z, c1_.z));
+    247      float3 c1 = make_float3(max(c0_.x, c1_.x), max(c0_.y, c1_.y), max(c0_.z, c1_.z));
+    248      float2 ab = make_float2(
+        max(max(c0.x, c0.y), c0.z),
+        min(min(c1.x, c1.y), c1.z)
+    );
+    252      return ab;
+    253  }
+
+    308  __forceinline__ __device__ float tri_interp_weight(const float3 qt, float interp_w[8])
+    309  {
+    310      float wx[2] = {1.f - qt.x, qt.x};
+    311      float wy[2] = {1.f - qt.y, qt.y};
+    312      float wz[2] = {1.f - qt.z, qt.z};
+    313      interp_w[0] = wx[0] * wy[0] * wz[0];
+    314      interp_w[1] = wx[0] * wy[0] * wz[1];
+    315      interp_w[2] = wx[0] * wy[1] * wz[0];
+    316      interp_w[3] = wx[0] * wy[1] * wz[1];
+    317      interp_w[4] = wx[1] * wy[0] * wz[0];
+    318      interp_w[5] = wx[1] * wy[0] * wz[1];
+    319      interp_w[6] = wx[1] * wy[1] * wz[0];
+    320      interp_w[7] = wx[1] * wy[1] * wz[1];
+    321  }
 ```
